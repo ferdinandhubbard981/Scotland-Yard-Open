@@ -36,6 +36,9 @@ class ImmutableNodeTransportPair implements ImmutableNodeWithTransport {
 }
 
 //use Floyd's Algorithm????????
+//use floyd first to get a map of the shortest distances to all nodes from every other node
+//but when searching keep state of tickets at each node, and deduct tickets as and when needed
+//also ensure that other detectives are not in the same position
 public class Dijkstra {
 
     public static void considerNeighbours(
