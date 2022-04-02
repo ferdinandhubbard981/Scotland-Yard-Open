@@ -11,22 +11,27 @@ import uk.ac.bris.cs.scotlandyard.model.Board;
 import java.util.*;
 
 public class MCTSNode {
-    private Board.GameState gameState;
-    private MCTSNode parent;
-    private ImmutableList<MCTSNode> children;
-    private int numberOfVisits;
-    private float monteCarloVal; //[-1, 1]
-    private float explorationConstant = 2; //hyper parameter for exploration vs exploitation
-    boolean mrXToMove;
-    MCTSNode(Board.GameState gameState, MCTSNode parent, List<MCTSNode> children, Piece pieceThatMadeMove) {
+    protected Board.GameState gameState;
+    protected MCTSNode parent;
+    protected ImmutableList<MCTSNode> children;
+    protected int numberOfVisits;
+    protected float monteCarloVal; //[-1, 1]
+    protected float explorationConstant = 2; //hyper parameter for exploration vs exploitation
+    protected boolean mrXToMove;
+    protected Move incidentMove;
+    MCTSNode(Board.GameState gameState, MCTSNode parent, List<MCTSNode> children, boolean mrXMadeMove, Move incidentMove) {
         this.gameState = gameState;
         this.parent = parent;
         this.children = ImmutableList.copyOf(children);
         this.numberOfVisits = 0;
         this.monteCarloVal = -2; //set to -2 means it hasn't been calculated yet
-        this.mrXToMove = pieceThatMadeMove == null || pieceThatMadeMove.isDetective();
+        this.mrXToMove = !mrXMadeMove;
+        this.incidentMove = incidentMove;
     }
 
+    Move getIncidentMove() {
+        return this.incidentMove;
+    }
     int getNumberOfVisits() {
         return this.numberOfVisits;
     }
@@ -38,7 +43,10 @@ public class MCTSNode {
 
     float getUCB1Val() {
         if (this.parent == null) return Float.MIN_VALUE;
-        if (this.monteCarloVal == -2 || this.numberOfVisits == 0) return Float.MAX_VALUE - getNumOfParents();
+        if (this.monteCarloVal == -2 || this.numberOfVisits == 0) {
+            int numOfParents = this.getNumOfParents();
+            return (float) Math.pow(2, 10) - numOfParents;
+        }
         return this.monteCarloVal + this.explorationConstant * (float) Math.sqrt(Math.log(this.parent.getNumberOfVisits()) / this.numberOfVisits);
     }
 
@@ -64,7 +72,7 @@ public class MCTSNode {
         ImmutableSet<Move> moves = this.gameState.getAvailableMoves();
         for (Move move : moves) {
             Board.GameState newGameState = this.gameState.advance(move);
-            MCTSNode newChild = new MCTSNode(newGameState, this, ImmutableList.of(), move.commencedBy());
+            MCTSNode newChild = new MCTSNode(newGameState, this, ImmutableList.of(), move.commencedBy().isMrX(), move);
             children.add(newChild);
         }
         return ImmutableList.copyOf(children);
@@ -107,7 +115,7 @@ public class MCTSNode {
 
     void backPropogate(int gameVal) {
         this.monteCarloVal = (this.monteCarloVal * this.numberOfVisits + gameVal) / ++this.numberOfVisits;
-        if (this.parent.parent != null) {
+        if (this.parent != null) {
             this.parent.backPropogate(gameVal);
         }
     }
