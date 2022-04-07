@@ -15,8 +15,9 @@ public class Floyd {
     ArrayList<ArrayList<Integer>> minimumDistances;
     ArrayList<ArrayList<Integer>> nextNode;
     ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> referenceGraph;
+    boolean isMrX;
 
-    public Floyd(ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> graph){
+    public Floyd(ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> graph, boolean isMrX){
         for (int i = 0; i < 200; i++){
             ArrayList<Integer> distances = new ArrayList<>(Collections.nCopies(200, Integer.MAX_VALUE));
             ArrayList<Integer> nodes = new ArrayList<>(Collections.nCopies(200, null));
@@ -24,6 +25,7 @@ public class Floyd {
             nextNode.add(i, nodes);
         }
         this.referenceGraph = graph;
+        this.isMrX = isMrX;
     }
     public void setInitialEdgesDistances(){
         this.referenceGraph.edges().forEach(endpointPair -> {
@@ -32,27 +34,23 @@ public class Floyd {
             ImmutableSet<ScotlandYard.Transport> methodsForNode = this.referenceGraph
                     .edgeValue(outboundNode, inboundNode)
                     .orElse(null);
-            int distance = 1; //can set what to minimise
-            //if (methodsForNode == null)
-            //distance is minimum number of tickets needed to traverse edge?
+            int distance = 1;
             minimumDistances.get(outboundNode).set(inboundNode, distance);
             nextNode.get(outboundNode).set(inboundNode, inboundNode);
         });
     }
-    //this is for any loops inside the map (which I don't believe there are)
-    public void setLoopDistances(){
-        this.referenceGraph.edges()
-                .stream()
-                .filter(pair -> pair.nodeU().equals(pair.nodeV()))
-                .forEach(pair -> {
-                    minimumDistances.get(pair.nodeU()).set(pair.nodeU(), 0);
-                    nextNode.get(pair.nodeU()).set(pair.nodeU(), pair.nodeU());
-        });
-    }
-    public void useFloyd(){
+    public void optimise(){
         for (int k = 0; k < 200; k++){
             for (int i = 0; i < 200; i++){
                 for (int j = 0; j < 200; j++){
+                    if (this.isMrX){
+                        if(minimumDistances.get(i).get(j) < minimumDistances.get(i).get(k) - minimumDistances.get(k).get(j)){
+                            minimumDistances.get(i).set(j,
+                                    minimumDistances.get(i).get(k) - minimumDistances.get(k).get(j));
+                            nextNode.get(i).set(j, nextNode.get(i).get(k));
+                        }
+                        continue;
+                    }
                     if (minimumDistances.get(i).get(j) > minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j)){
                         minimumDistances.get(i).set(j,
                                 minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j));
