@@ -44,9 +44,9 @@ public class Floyd {
             for (int i = 0; i < 200; i++){
                 for (int j = 0; j < 200; j++){
                     if (this.isMrX){
-                        if(minimumDistances.get(i).get(j) < minimumDistances.get(i).get(k) - minimumDistances.get(k).get(j)){
+                        if(minimumDistances.get(i).get(j) < minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j)){
                             minimumDistances.get(i).set(j,
-                                    minimumDistances.get(i).get(k) - minimumDistances.get(k).get(j));
+                                    minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j));
                             nextNode.get(i).set(j, nextNode.get(i).get(k));
                         }
                         continue;
