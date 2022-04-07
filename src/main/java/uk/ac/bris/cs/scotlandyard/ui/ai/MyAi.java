@@ -12,10 +12,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import io.atlassian.fugue.Pair;
-import uk.ac.bris.cs.scotlandyard.model.Ai;
-import uk.ac.bris.cs.scotlandyard.model.Board;
-import uk.ac.bris.cs.scotlandyard.model.Move;
-import uk.ac.bris.cs.scotlandyard.model.Piece;
+import uk.ac.bris.cs.scotlandyard.model.*;
 
 public class MyAi implements Ai {
 
@@ -38,8 +35,10 @@ public class MyAi implements Ai {
 		return (this.mrXPlaying ? nextMrXMove(board) : nextDetectiveMove(board));
 	}
 	private int getClosestDetectivePosition(Board board){
-		@SuppressWarnings("unchecked") ImmutableSet<Integer> positions = (ImmutableSet<Integer>) board.getPlayers()
-				.stream().map(detective -> board.getDetectiveLocation((Piece.Detective) detective).get());
+		ImmutableList<Integer> positions =
+				(ImmutableList<Integer>) board.getPlayers()
+				.stream().map(detective -> board.getDetectiveLocation((Piece.Detective) detective).get())
+						.toList();
 		int currentClosestDetectiveDistance = Integer.MAX_VALUE;
 		int currentClosestDetectivePosition = -1;
 		for (int position : positions){
@@ -54,10 +53,17 @@ public class MyAi implements Ai {
 	private Move nextDetectiveMove(Board board){
 		return null;
 	}
+	private int getMrXLocation(Board board, boolean isMrX){
+		if (isMrX) return board.getAvailableMoves().asList().get(0).source(); //avoids insider information
+
+		for (LogEntry entry : board.getMrXTravelLog().reverse()){
+			if (entry.location().orElse(null) != null) return entry.location().get();
+		}
+		//we don't know where mrX was last seen, so a random direction?
+		return new Random().nextInt(0, 200);
+	}
 	private Move nextMrXMove(Board board){
-		int closestDet = getClosestDetectivePosition(board);
-		//this.mrXRouteTable.getPath(board.)
-		return null;
+		return mrXRouteTable.getNextNode(getMrXLocation(board, true), getClosestDetectivePosition(board));
 	}
 
 //	private Move useFloyd(Board board){
