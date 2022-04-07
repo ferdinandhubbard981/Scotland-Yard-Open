@@ -13,20 +13,28 @@ import java.util.*;
  */
 public class Floyd {
     ArrayList<ArrayList<Integer>> minimumDistances;
-    ArrayList<ArrayList<Integer>> nextNode;
+    ArrayList<ArrayList<Integer>> nextNodes;
     ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> referenceGraph;
     boolean isMrX;
 
+    /**
+     * @param graph the game board
+     * @param isMrX the perspective of the current player
+     */
     public Floyd(ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> graph, boolean isMrX){
         for (int i = 0; i < 200; i++){
             ArrayList<Integer> distances = new ArrayList<>(Collections.nCopies(200, Integer.MAX_VALUE));
             ArrayList<Integer> nodes = new ArrayList<>(Collections.nCopies(200, null));
             minimumDistances.add(i, distances);
-            nextNode.add(i, nodes);
+            nextNodes.add(i, nodes);
         }
         this.referenceGraph = graph;
         this.isMrX = isMrX;
     }
+
+    /**
+     * @apiNote only needs to be run once
+     */
     public void setInitialEdgesDistances(){
         this.referenceGraph.edges().forEach(endpointPair -> {
             int outboundNode = endpointPair.nodeU();
@@ -36,38 +44,44 @@ public class Floyd {
                     .orElse(null);
             int distance = 1;
             minimumDistances.get(outboundNode).set(inboundNode, distance);
-            nextNode.get(outboundNode).set(inboundNode, inboundNode);
+            nextNodes.get(outboundNode).set(inboundNode, inboundNode);
         });
     }
+
+    /**
+     *
+     * @param type -1 if replacing original with a greater distance, else 1 for lesser
+     * @param start starting node of optimisation
+     * @param end ending node of optimisation
+     * @param alt potential alternative node to use
+     */
+    private void setDistances(int type, int start, int end, int alt){
+        final int potentialAlt = minimumDistances.get(start).get(alt) + minimumDistances.get(alt).get(end);
+        if(minimumDistances.get(start).get(end)/*original*/.compareTo(potentialAlt) == type){
+            minimumDistances.get(start).set(end, potentialAlt);
+            nextNodes.get(start).set(end, nextNodes.get(start).get(alt));
+        }
+    }
+
+    /**
+     * @apiNote only needs to be run once
+     */
     public void optimise(){
         for (int k = 0; k < 200; k++){
             for (int i = 0; i < 200; i++){
                 for (int j = 0; j < 200; j++){
-                    if (this.isMrX){
-                        if(minimumDistances.get(i).get(j) < minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j)){
-                            minimumDistances.get(i).set(j,
-                                    minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j));
-                            nextNode.get(i).set(j, nextNode.get(i).get(k));
-                        }
-                        continue;
-                    }
-                    if (minimumDistances.get(i).get(j) > minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j)){
-                        minimumDistances.get(i).set(j,
-                                minimumDistances.get(i).get(k) + minimumDistances.get(k).get(j));
-                        nextNode.get(i).set(j, nextNode.get(i).get(k));
-                    }
+                    setDistances(this.isMrX ? -1 : 1, i, j, k);
                 }
             }
         }
     }
-    public ImmutableList<Integer> getPath(int start, int end){
-        //probably handles start/end not in graph
-        if (nextNode.get(start).get(end) == null) return ImmutableList.of();
-        List<Integer> path = List.of(start);
-        while(start != end){
-            start = nextNode.get(start).get(end);
-            path.add(start);
-        }
-        return ImmutableList.copyOf(path);
+
+    /**
+     * @param start current position of player
+     * @param end position of destination player
+     * @return position of the best node to go to.
+     */
+    public int getNextNode(int start, int end){
+        return nextNodes.get(start).get(end);
     }
 }
