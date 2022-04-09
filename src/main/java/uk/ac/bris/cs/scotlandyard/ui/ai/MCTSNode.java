@@ -16,7 +16,7 @@ public class MCTSNode {
     protected ImmutableList<MCTSNode> children;
     protected int numberOfVisits;
     protected float monteCarloVal; //[-1, 1]
-    protected float explorationConstant = 2; //hyper parameter for exploration vs exploitation
+    protected float explorationConstant = 1000000000; //hyper parameter for exploration vs exploitation
     protected boolean mrXToMove;
     protected Move incidentMove;
     MCTSNode(Board.GameState gameState, MCTSNode parent, List<MCTSNode> children, boolean mrXMadeMove, Move incidentMove) {

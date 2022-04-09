@@ -1,5 +1,7 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.*;
@@ -53,6 +55,13 @@ public class MyAi implements Ai {
 //		MCTSNode cutTree = removeAllNodesWithMinVisits(rootNode, 10);
 		MCTSNode bestNode = getBestChildNode(rootNode);
 		Move bestMove = bestNode.getIncidentMove();
+		String fileName = String.format("round");
+		String filePath = String.format("C:\\Users\\ferdi\\Desktop\\Scotland-Yard-Open\\roundData\\%s.txt", fileName);
+		try {
+			writeRoundResults(filePath, rootNode, bestMove);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
 		return bestMove;
 	}
 
@@ -117,6 +126,44 @@ public class MyAi implements Ai {
 		return detectiveDistances.stream()
 				.reduce(0f, Float::sum);
 	}
+	//misc
+	void writeRoundResults(String filePath, MCTSNode rootNode, Move bestMove) throws FileNotFoundException {
+		PrintWriter writer = new PrintWriter(new FileOutputStream(filePath, true));
+		//write header (round num, time taken, time available)
+		Board.GameState board = rootNode.getState();
+		if (board.getAvailableMoves().stream().anyMatch(move -> move.commencedBy().isMrX()))
+			writer.println(String.format("round %d:\n", board.getMrXTravelLog().size()+1));
+		writer.println(String.format("move commenced by: %s\n", bestMove.commencedBy().toString()));
+		//write sd
+		writer.println(String.format("SD: %f\n", getExplorationStandardDistribution(rootNode)));
+		//write num of sims
+		int numOfSims = rootNode.getChildren().stream()
+				.map(child -> child.getNumberOfVisits())
+				.reduce(0, (total, element) -> total += element);
+		writer.println(String.format("total sims: %d\n", numOfSims));
+		//write num of sims per move
+		writer.println("visits for each move: ");
+		for (MCTSNode child : rootNode.getChildren()) writer.println(String.format("%d, ", child.getNumberOfVisits()));
+		writer.println("\n");
+		//write montecarlo vals for each move
+		writer.println("montecarlo vals: ");
+		for (MCTSNode child : rootNode.getChildren()) writer.println(String.format("%f ", child.getMonteCarloVal()));
+		writer.println("\n\n");
+		writer.close();
+	}
+
+	Float getExplorationStandardDistribution(MCTSNode rootNode) {
+		List<Integer> values = new ArrayList<>();
+		for (MCTSNode child : rootNode.getChildren()) {
+			values.add(child.numberOfVisits);
+		}
+		float mean = values.stream().reduce(0, (total, element) -> total+element).floatValue() / values.size();
+		float variance = values.stream().map(val -> Float.valueOf(val)).reduce(0f, (total, element) -> total + (float)Math.pow(element - mean, 2)) / values.size();
+		Float sD = (float)Math.sqrt(variance);
+		return sD;
+	}
+
+
 
 
 
