@@ -1,10 +1,8 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 
-import com.esotericsoftware.kryo.util.Null;
 import com.google.common.collect.*;
 import uk.ac.bris.cs.scotlandyard.model.*;
-import uk.ac.bris.cs.scotlandyard.*;
 import com.google.common.collect.ImmutableList;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
@@ -15,8 +13,8 @@ public class MCTSNode {
     protected MCTSNode parent;
     protected ImmutableList<MCTSNode> children;
     protected int numberOfVisits;
-    protected float monteCarloVal; //[-1, 1]
-    protected float explorationConstant = 1000000000; //hyper parameter for exploration vs exploitation
+    protected float numOfWins;
+    protected float explorationConstant = (float)Math.sqrt(2); //hyper parameter for exploration vs exploitation
     protected boolean mrXToMove;
     protected Move incidentMove;
     MCTSNode(Board.GameState gameState, MCTSNode parent, List<MCTSNode> children, boolean mrXMadeMove, Move incidentMove) {
@@ -24,7 +22,7 @@ public class MCTSNode {
         this.parent = parent;
         this.children = ImmutableList.copyOf(children);
         this.numberOfVisits = 0;
-        this.monteCarloVal = -2; //set to -2 means it hasn't been calculated yet
+        this.numOfWins = 0; //set to -2 means it hasn't been calculated yet
         this.mrXToMove = !mrXMadeMove;
         this.incidentMove = incidentMove;
     }
@@ -43,27 +41,28 @@ public class MCTSNode {
 
     float getUCB1Val() {
         if (this.parent == null) return Float.MIN_VALUE;
-        if (this.monteCarloVal == -2 || this.numberOfVisits == 0) {
+        if (this.numberOfVisits == 0) {
             int numOfParents = this.getNumOfParents();
             return (float) Math.pow(2, 10) - numOfParents;
         }
-        return this.monteCarloVal + this.explorationConstant * (float) Math.sqrt(Math.log(this.parent.getNumberOfVisits()) / this.numberOfVisits);
+        return this.numOfWins/this.numberOfVisits + this.explorationConstant * (float) Math.sqrt(Math.log(this.parent.getNumberOfVisits()) / this.numberOfVisits);
     }
 
-    float getMonteCarloVal() {
-        return this.monteCarloVal;
+    float getNumOfWins() {
+        return this.numOfWins;
     }
 
-    MCTSNode getNodeWithHighestUCBVal(MCTSNode highestValNode) {
+    MCTSNode getNodeWithHighestUCBVal(MCTSNode highestValNode, boolean recursive) {
         //check if no parent node and no children at the same time?
-        if (this.children.isEmpty()) {
+        if (this.children.isEmpty() || !recursive) {
             if (this.getUCB1Val() > highestValNode.getUCB1Val()) return this;
             else return highestValNode;
         }
-
+        highestValNode = this.children.stream().findAny().get();
         for (MCTSNode child : this.children) {
-            highestValNode = child.getNodeWithHighestUCBVal(highestValNode);
+            highestValNode = child.getNodeWithHighestUCBVal(highestValNode, false);
         }
+        highestValNode = highestValNode.getNodeWithHighestUCBVal(highestValNode, true);
         return highestValNode;
     }
 
@@ -109,12 +108,13 @@ public class MCTSNode {
             //play move
             current = current.advance(move);
         }
-        int gameVal = (current.getWinner().stream().findAny().get().isMrX() == this.mrXToMove) ? 1 : -1;
+        int gameVal = (current.getWinner().stream().findAny().get().isMrX() == this.mrXToMove) ? 1 : 0; //might be the cause of some problems
         this.backPropogate(gameVal);
     }
 
     void backPropogate(int gameVal) {
-        this.monteCarloVal = (this.monteCarloVal * this.numberOfVisits + gameVal) / ++this.numberOfVisits;
+        this.numOfWins += gameVal;
+        this.numberOfVisits++;
         if (this.parent != null) {
             this.parent.backPropogate(gameVal);
         }

@@ -1,20 +1,21 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.util.Random;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 import java.util.*;
 
 import javax.annotation.Nonnull;
 
-import com.esotericsoftware.minlog.Log;
 import com.google.common.collect.*;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.*;
 
 public class MyAi implements Ai {
-	Board.GameState currentGameState;
+	String filePath;
 	@Nonnull @Override public String name() { return "alphaTwo"; }
 
 	@Nonnull @Override public Move pickMove(
@@ -29,38 +30,44 @@ public class MyAi implements Ai {
 	}
 
 	public void onStart() {
-
+		String extension = LocalDateTime.now().toString().replace(':', '-');
+		this.filePath = String.format("C:\\Users\\ferdi\\Desktop\\Scotland-Yard-Open\\game-data\\%s", extension);
+		File file = new File(this.filePath);
+		file.mkdirs();
 	}
 
 	private Move monteCarloTreeSearch(Board board, long endTime) {
 		//initialize root node
+		long startTime = System.nanoTime();
 		MCTSNode rootNode = new MCTSNode((Board.GameState) board, null, ImmutableList.of(), true, null);
 		MCTSNode current = rootNode;
 //		current.setChildren(current.findChildren());
 		while (endTime-System.nanoTime() > TimeUnit.SECONDS.toNanos(1)) {
 //			System.err.format("%d", TimeUnit.NANOSECONDS.toSeconds(endTime-System.nanoTime()));
 			if (!current.isLeafNode()) {
-				current = rootNode.getNodeWithHighestUCBVal(rootNode);
+				current = rootNode.getNodeWithHighestUCBVal(rootNode, true);
 			}
 			else if (current.getNumberOfVisits() == 0) {
 				current.rollout();
-				current = rootNode.getNodeWithHighestUCBVal(rootNode);
+				current = rootNode.getNodeWithHighestUCBVal(rootNode, true);
 			}
 			else {
 				if (!current.isTerminalState()) current.setChildren(current.findChildren());
-				current = rootNode.getNodeWithHighestUCBVal(rootNode);
+				current = rootNode.getNodeWithHighestUCBVal(rootNode, true);
 			}
 
 		}
+		long timeTaken = System.nanoTime() - startTime;
 //		MCTSNode cutTree = removeAllNodesWithMinVisits(rootNode, 10);
 		MCTSNode bestNode = getBestChildNode(rootNode);
 		Move bestMove = bestNode.getIncidentMove();
-		String fileName = String.format("round");
-		String filePath = String.format("C:\\Users\\ferdi\\Desktop\\Scotland-Yard-Open\\roundData\\%s.txt", fileName);
+		String fileName = String.format("round%d.txt", board.getMrXTravelLog().size()+1);
+		String filePath = String.format("%s\\%s", this.filePath, fileName);
 		try {
-			writeRoundResults(filePath, rootNode, bestMove);
+			writeRoundResults(filePath, rootNode, bestMove, timeTaken);
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
+			System.exit(1);
 		}
 		return bestMove;
 	}
@@ -74,7 +81,7 @@ public class MyAi implements Ai {
 			ModMCTSNode(MCTSNode copyNode) {
 				super(copyNode.gameState, copyNode.parent, copyNode.children, !copyNode.mrXToMove, copyNode.incidentMove);
 				this.numberOfVisits = copyNode.numberOfVisits;
-				this.monteCarloVal = copyNode.monteCarloVal;
+				this.numOfWins = copyNode.numOfWins;
 			}
 
 			void removeChild(MCTSNode childToBeRemoved) {
@@ -105,7 +112,7 @@ public class MyAi implements Ai {
 		ImmutableList<MCTSNode> children = root.getChildren();
 		MCTSNode bestChild = children.stream().findAny().get();
 		for (MCTSNode child : children) {
-			if (child.getMonteCarloVal() > bestChild.getMonteCarloVal()) bestChild = child;
+			if (child.getNumOfWins() > bestChild.getNumOfWins()) bestChild = child;
 		}
 		return bestChild;
 	}
@@ -127,27 +134,30 @@ public class MyAi implements Ai {
 				.reduce(0f, Float::sum);
 	}
 	//misc
-	void writeRoundResults(String filePath, MCTSNode rootNode, Move bestMove) throws FileNotFoundException {
+	void writeRoundResults(String filePath, MCTSNode rootNode, Move bestMove, long timeTaken) throws FileNotFoundException {
 		PrintWriter writer = new PrintWriter(new FileOutputStream(filePath, true));
 		//write header (round num, time taken, time available)
 		Board.GameState board = rootNode.getState();
 		if (board.getAvailableMoves().stream().anyMatch(move -> move.commencedBy().isMrX()))
 			writer.println(String.format("round %d:\n", board.getMrXTravelLog().size()+1));
+		float secondsTaken = TimeUnit.NANOSECONDS.toSeconds(timeTaken);
+		writer.println(String.format("time taken: %f seconds\n", secondsTaken));
+		int numOfSims = rootNode.getChildren().stream()
+				.map(child -> child.getNumberOfVisits())
+				.reduce(0, (total, element) -> total += element);
+		writer.println(String.format("speed: %f cycles per second\n", numOfSims/secondsTaken));
 		writer.println(String.format("move commenced by: %s\n", bestMove.commencedBy().toString()));
 		//write sd
 		writer.println(String.format("SD: %f\n", getExplorationStandardDistribution(rootNode)));
 		//write num of sims
-		int numOfSims = rootNode.getChildren().stream()
-				.map(child -> child.getNumberOfVisits())
-				.reduce(0, (total, element) -> total += element);
 		writer.println(String.format("total sims: %d\n", numOfSims));
 		//write num of sims per move
 		writer.println("visits for each move: ");
-		for (MCTSNode child : rootNode.getChildren()) writer.println(String.format("%d, ", child.getNumberOfVisits()));
+		for (MCTSNode child : rootNode.getChildren()) writer.print(String.format("%d, ", child.getNumberOfVisits()));
 		writer.println("\n");
-		//write montecarlo vals for each move
-		writer.println("montecarlo vals: ");
-		for (MCTSNode child : rootNode.getChildren()) writer.println(String.format("%f ", child.getMonteCarloVal()));
+		//write num of wins for each move
+		writer.println("num of wins: ");
+		for (MCTSNode child : rootNode.getChildren()) writer.print(String.format("%f ", child.getNumOfWins()));
 		writer.println("\n\n");
 		writer.close();
 	}
