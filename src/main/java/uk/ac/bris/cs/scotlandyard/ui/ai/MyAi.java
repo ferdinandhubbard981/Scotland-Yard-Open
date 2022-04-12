@@ -2,15 +2,11 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.*;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.*;
 
@@ -50,9 +46,14 @@ public class MyAi implements Ai {
 		}
 		return currentClosestDetectivePosition;
 	}
+	private Move defaultMove(Board board){
+		ImmutableList<Move> moves = board.getAvailableMoves().asList();
+		return moves.get(new Random().nextInt(moves.size()));
+	}
 	private Move nextDetectiveMove(Board board){
 		return null;
 	}
+
 	private int getMrXLocation(Board board, boolean isMrX){
 		if (isMrX) return board.getAvailableMoves().asList().get(0).source(); //avoids insider information
 
@@ -62,21 +63,28 @@ public class MyAi implements Ai {
 		//we don't know where mrX was last seen, so a random direction?
 		return new Random().nextInt(0, 200);
 	}
-	private Move nextMrXMove(Board board){
-		return mrXRouteTable.getNextNode(getMrXLocation(board, true), getClosestDetectivePosition(board));
-	}
 
-//	private Move useFloyd(Board board){
-//		ImmutableList<Integer> detectiveLocations =
-//		if (this.mrXPlaying){
-//			this.mrXRouteTable.getPath()
-//		}
-//	}
+	private Move nextMrXMove(Board board) {
+		int mrXLocation = getMrXLocation(board, true);
+		int nextNode = mrXRouteTable.getNextNode(
+				mrXLocation, getClosestDetectivePosition(board)
+		);
+		//get transport method connecting the nodes, find the move that has same
+		ImmutableList<Integer> destinations = (ImmutableList<Integer>) board.getAvailableMoves()
+				.stream().map(m -> m.accept(new Move.Visitor<Integer>() {
+					@Override
+					public Integer visit(Move.SingleMove move) {
+						return move.destination;
+					}
 
-	private float rewardFunction(List<Integer> detectiveDistances) {
-		return detectiveDistances.stream()
-				.reduce(0, (acc, distance) -> acc + distance).floatValue();
-
-
+					@Override
+					public Integer visit(Move.DoubleMove move) {
+						return move.destination2;
+					}
+				})).toList();
+		for (int i = 0; i < destinations.size(); i++) {
+			if (nextNode == destinations.get(i)) return board.getAvailableMoves().asList().get(i);
+		}
+		return defaultMove(board);
 	}
 }
