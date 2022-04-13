@@ -12,8 +12,8 @@ import java.util.*;
  * @see <a href="https://en.wikipedia.org/wiki/Floyd%E2%80%93Warshall_algorithm">Floyd's Algorithm</a>
  */
 public class Floyd {
-    ArrayList<ArrayList<Integer>> minimumDistances;
-    ArrayList<ArrayList<Integer>> nextNodes;
+    HashMap<Integer, HashMap<Integer, Integer>> minimumDistances = new HashMap<>();
+    HashMap<Integer, HashMap<Integer, Integer>> nextNodes = new HashMap<>();
     ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> referenceGraph;
     boolean isMrX;
 
@@ -22,29 +22,35 @@ public class Floyd {
      * @param isMrX the perspective of the current player
      */
     public Floyd(ImmutableValueGraph<Integer, ImmutableSet<ScotlandYard.Transport>> graph, boolean isMrX){
-        for (int i = 0; i < 200; i++){
-            ArrayList<Integer> distances = new ArrayList<>(Collections.nCopies(200, Integer.MAX_VALUE));
-            ArrayList<Integer> nodes = new ArrayList<>(Collections.nCopies(200, null));
-            minimumDistances.add(i, distances);
-            nextNodes.add(i, nodes);
+        for (int i = 1; i < 200; i++){
+            HashMap<Integer, Integer> distances = new HashMap<>();
+            HashMap<Integer, Integer> nodes = new HashMap<>();
+            for (int j = 1; i < 200; j++){
+                distances.put(j, Integer.MAX_VALUE);
+                nodes.put(j, null);
+            }
+            minimumDistances.put(i, distances);
+            nextNodes.put(i, nodes);
         }
         this.referenceGraph = graph;
         this.isMrX = isMrX;
+        this.setInitialEdgesDistances();
+        this.optimise();
     }
 
     /**
      * @apiNote only needs to be run once
      */
-    public void setInitialEdgesDistances(){
+    private void setInitialEdgesDistances(){
         this.referenceGraph.edges().forEach(endpointPair -> {
             int outboundNode = endpointPair.nodeU();
             int inboundNode = endpointPair.nodeV();
-            ImmutableSet<ScotlandYard.Transport> methodsForNode = this.referenceGraph
-                    .edgeValue(outboundNode, inboundNode)
-                    .orElse(null);
+//            ImmutableSet<ScotlandYard.Transport> methodsForNode = this.referenceGraph
+//                    .edgeValue(outboundNode, inboundNode)
+//                    .orElse(null); //if we want to do something using number of transport methods
             int distance = 1;
-            minimumDistances.get(outboundNode).set(inboundNode, distance);
-            nextNodes.get(outboundNode).set(inboundNode, inboundNode);
+            minimumDistances.get(outboundNode).put(inboundNode, distance);
+            nextNodes.get(outboundNode).put(inboundNode, inboundNode);
         });
     }
 
@@ -58,18 +64,18 @@ public class Floyd {
     private void setDistances(int type, int start, int end, int alt){
         final int potentialAlt = minimumDistances.get(start).get(alt) + minimumDistances.get(alt).get(end);
         if(minimumDistances.get(start).get(end)/*original*/.compareTo(potentialAlt) == type){
-            minimumDistances.get(start).set(end, potentialAlt);
-            nextNodes.get(start).set(end, nextNodes.get(start).get(alt));
+            minimumDistances.get(start).put(end, potentialAlt);
+            nextNodes.get(start).put(end, nextNodes.get(start).get(alt));
         }
     }
 
     /**
      * @apiNote only needs to be run once
      */
-    public void optimise(){
-        for (int k = 0; k < 200; k++){
-            for (int i = 0; i < 200; i++){
-                for (int j = 0; j < 200; j++){
+    private void optimise(){
+        for (int k = 1; k < 200; k++){
+            for (int i = 1; i < 200; i++){
+                for (int j = 1; j < 200; j++){
                     setDistances(this.isMrX ? -1 : 1, i, j, k);
                 }
             }
