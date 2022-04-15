@@ -58,7 +58,7 @@ public class Dijkstra<T> implements DijkstraAlgorithm {
     ImmutableValueGraph<Integer, T> graph;
     int start, end;
     HashMap<Integer, Integer> backtrackMap = new HashMap<>();
-    ImmutableList<Integer> trail;
+    List<Integer> trail = new ArrayList<>();
     HashMap<Integer, Boolean> unvisited;
     HashMap<Integer, Integer> distances = new HashMap<>();
 
@@ -110,16 +110,22 @@ public class Dijkstra<T> implements DijkstraAlgorithm {
 
     @Override
     public void backtrack(HashMap<Integer, Integer> backtrackMap) {
-
+        int current = this.start;
+        this.trail.add(current);
+        Integer next;
+        while((next = backtrackMap.get(current)) != null){
+            this.trail.add(next);
+            current = next;
+        }
     }
 
     @Override
     public HashMap<Integer, Integer> getBacktrackMap() {
-        return null;
+        return this.backtrackMap;
     }
 
     @Override
     public ImmutableList<Integer> getTrail() {
-        return null;
+        return ImmutableList.copyOf(this.trail);
     }
 }
