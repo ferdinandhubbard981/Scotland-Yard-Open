@@ -3,11 +3,7 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import com.google.common.collect.ImmutableList;
 import com.google.common.graph.ImmutableValueGraph;
 
-import java.util.HashMap;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.*;
 
 interface DijkstraAlgorithm {
     void search();
@@ -19,67 +15,95 @@ interface DijkstraAlgorithm {
 
 public class Dijkstra<T> implements DijkstraAlgorithm {
 
-    interface GraphNode {
-        <T> T getNodeKey();
-        <T> T getNodeValue();
+    interface GraphNode<M> {
+        M getNodeValue();
+        M getDistance();
     }
 
-    static class Node<K extends Comparable<K>> implements GraphNode, Comparable<Node<K>> {
-        K key;
-        K value;
-        public Node(K key, K value){
-            this.key = key;
-            this.value = value;
+    static class Node implements GraphNode<Integer>, Comparable<Node> {
+        private final int node;
+        private final int distance;
+        public Node(int node, int distance){
+            this.node = node;
+            this.distance = distance;
         }
 
         @Override
-        public K getNodeKey() {
-            return this.key;
+        public Integer getNodeValue() {
+            return this.node;
         }
 
         @Override
-        public K getNodeValue() {
-            return this.value;
+        public Integer getDistance() {
+            return this.distance;
         }
 
         @Override
-        public int compareTo(Node<K> o) {
-            return this.value.compareTo(o.value);
+        public int compareTo(Node o) {
+            if (this.equals(o)) return 0; //for removing duplicates
+            return this.getDistance() < o.getDistance() ? -1 : 1; //sorts based on distances
+        }
+
+        @Override
+        public int hashCode(){
+            return this.node;
+        }
+
+        @Override
+        public boolean equals(Object o){
+            return (o instanceof Node) && ((Node)o).node == this.node;
         }
     }
 
     ImmutableValueGraph<Integer, T> graph;
     int start, end;
-    HashMap<Integer, Integer> backtrackMap;
+    HashMap<Integer, Integer> backtrackMap = new HashMap<>();
     ImmutableList<Integer> trail;
-    Set<Integer> unvisited;
-    HashMap<Integer, Integer> distances;
+    HashMap<Integer, Boolean> unvisited;
+    HashMap<Integer, Integer> distances = new HashMap<>();
 
-    int currentNode;
-    TreeSet<Integer> neighbours;
+    Node currentNode;
+    TreeSet<Node> neighbours;
 
     public Dijkstra(ImmutableValueGraph<Integer, T> graph, int start, int end, int totalNodes){
         this.graph = graph;
         this.start = start;
         this.end = end;
-        this.unvisited = IntStream.range(1,200).boxed().collect(Collectors.toSet());
+        //creating unvisited set and initialising tentative distances
         for (int i = 1; i < totalNodes; i++){
+            this.unvisited.put(i, true);
             this.distances.put(i, Integer.MAX_VALUE);
         }
         this.distances.put(start, 0);
-        this.currentNode = -1;
+        //adding start node as entry point to algorithm
         this.neighbours = new TreeSet<>();
-        this.neighbours.add(start);
+        this.neighbours.add(new Node(start, 0));
+        this.backtrackMap.put(start, null);
     }
 
     @Override
     public void search() {
         while(!this.neighbours.isEmpty()){
             this.currentNode = this.neighbours.first();
+            if (this.currentNode.getNodeValue() == this.end) return;
+            //not found
             this.neighbours.remove(this.currentNode);
-            if (this.currentNode == this.end) return;
 
-            this.neighbours.addAll(this.graph.adjacentNodes(this.currentNode));
+            //for each unvisited neighbour, if unvisited and new distance is less than previous, add to neighbour list
+            ////check that unvisited neighbours that have been improved are not duplicated
+            int dist = this.currentNode.getDistance() + 1;
+            for (int adjacentNode : this.graph.adjacentNodes(this.currentNode.getNodeValue())){
+                if (!unvisited.get(adjacentNode) || dist > distances.get(adjacentNode)) continue;
+                distances.put(adjacentNode, dist);
+                backtrackMap.put(adjacentNode, currentNode.getNodeValue());
+                Node dummy = new Node(adjacentNode, -1);
+                if (neighbours.contains(dummy)) {
+                    //for adding an improved route to node
+                    neighbours.remove(dummy);
+                }
+                neighbours.add(new Node(adjacentNode, dist));
+            }
+            this.unvisited.put(this.currentNode.getNodeValue(), false);
         }
 
     }
