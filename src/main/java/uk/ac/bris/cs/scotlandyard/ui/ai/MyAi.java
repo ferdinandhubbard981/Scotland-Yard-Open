@@ -1,9 +1,6 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 import java.util.*;
@@ -39,7 +36,9 @@ public class MyAi implements Ai {
 	private Move monteCarloTreeSearch(Board board, long endTime) {
 		//initialize root node
 		long startTime = System.nanoTime();
-		MCTSNode rootNode = new MCTSNode((Board.GameState) board, null, ImmutableList.of(), true, null);
+		Board.GameState gameState = (Board.GameState) board;
+		boolean mrxToMove = board.getAvailableMoves().stream().findAny().get().commencedBy().isMrX();
+		MCTSNode rootNode = new MCTSNode((Board.GameState) board, null, ImmutableList.of(), !mrxToMove, null);
 		MCTSNode current = rootNode;
 //		current.setChildren(current.findChildren());
 		while (endTime-System.nanoTime() > TimeUnit.SECONDS.toNanos(1)) {
@@ -81,7 +80,7 @@ public class MyAi implements Ai {
 			ModMCTSNode(MCTSNode copyNode) {
 				super(copyNode.gameState, copyNode.parent, copyNode.children, !copyNode.mrXToMove, copyNode.incidentMove);
 				this.numberOfVisits = copyNode.numberOfVisits;
-				this.numOfWins = copyNode.numOfWins;
+				this.sumOfStateVals = copyNode.sumOfStateVals;
 			}
 
 			void removeChild(MCTSNode childToBeRemoved) {
@@ -112,7 +111,7 @@ public class MyAi implements Ai {
 		ImmutableList<MCTSNode> children = root.getChildren();
 		MCTSNode bestChild = children.stream().findAny().get();
 		for (MCTSNode child : children) {
-			if (child.getNumOfWins() > bestChild.getNumOfWins()) bestChild = child;
+			if (child.getSumOfStateVals() > bestChild.getSumOfStateVals()) bestChild = child;
 		}
 		return bestChild;
 	}
@@ -142,22 +141,22 @@ public class MyAi implements Ai {
 			writer.println(String.format("round %d:\n", board.getMrXTravelLog().size()+1));
 		float secondsTaken = TimeUnit.NANOSECONDS.toSeconds(timeTaken);
 		writer.println(String.format("time taken: %f seconds\n", secondsTaken));
-		int numOfSims = rootNode.getChildren().stream()
+		int numOfVisits = rootNode.getChildren().stream()
 				.map(child -> child.getNumberOfVisits())
 				.reduce(0, (total, element) -> total += element);
-		writer.println(String.format("speed: %f cycles per second\n", numOfSims/secondsTaken));
+		writer.println(String.format("speed: %f visits per second\n", numOfVisits/secondsTaken));
 		writer.println(String.format("move commenced by: %s\n", bestMove.commencedBy().toString()));
 		//write sd
 		writer.println(String.format("SD: %f\n", getExplorationStandardDistribution(rootNode)));
 		//write num of sims
-		writer.println(String.format("total sims: %d\n", numOfSims));
+		writer.println(String.format("total sims: %d\n", numOfVisits));
 		//write num of sims per move
 		writer.println("visits for each move: ");
 		for (MCTSNode child : rootNode.getChildren()) writer.print(String.format("%d, ", child.getNumberOfVisits()));
 		writer.println("\n");
 		//write num of wins for each move
 		writer.println("num of wins: ");
-		for (MCTSNode child : rootNode.getChildren()) writer.print(String.format("%f ", child.getNumOfWins()));
+		for (MCTSNode child : rootNode.getChildren()) writer.print(String.format("%f ", child.getSumOfStateVals()));
 		writer.println("\n\n");
 		writer.close();
 	}
