@@ -33,6 +33,12 @@
 
         <!--Located in local repo (project.local) -->
         <dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow-core-platform-mkl-gpu</artifactId>
+            <version>0.3.3</version>
+        </dependency>
+
+        <dependency>
             <groupId>uk.ac.bris.cs</groupId>
             <artifactId>scotlandyard-local</artifactId>
             <version>0.0.1-SNAPSHOT</version>

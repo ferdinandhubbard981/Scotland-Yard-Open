@@ -47,7 +47,7 @@ public class MCTSNode {
             return (float) Math.pow(2, 10);// - numOfParents;
         }
         float exploitation = this.sumOfStateVals /this.numberOfVisits;
-        float exploration = this.explorationConstant * (float) Math.sqrt(Math.log(this.parent.getNumberOfVisits()) / this.numberOfVisits);
+        float exploration = this.explorationConstant * (float) Math.sqrt(Math.log(this.parent.getNumberOfVisits()) / (this.numberOfVisits+1));
         return exploitation + exploration;
     }
 
@@ -116,7 +116,7 @@ public class MCTSNode {
             this.backPropogate(0);
             return;
         };
-        int gameVal = (current.getWinner().stream().findAny().get().isMrX() == this.parent.mrXToMove) ? 1 : 0; //might be the cause of some problems
+        int gameVal = (current.getWinner().stream().findAny().get().isMrX() == this.parent.mrXToMove) ? 1 : -1; //might be the cause of some problems
         this.backPropogate(gameVal);
     }
 
@@ -132,7 +132,7 @@ public class MCTSNode {
         }
         averageDistance /= detectives.size();
         averageDistance /= this.moveDepth;
-        float gameVal = (this.mrXToMove) ? averageDistance : 1 - averageDistance; //might be the cause of some problems
+        float gameVal = (this.mrXToMove) ? averageDistance : -averageDistance; //might be the cause of some problems
         backPropogate(gameVal);
     }
 
@@ -145,7 +145,7 @@ public class MCTSNode {
         if (this.parent.parent == null) {
             this.backPropogate(0);
         }
-        else if (this.parent.parent.mrXToMove != this.parent.mrXToMove) gameVal = 1 - gameVal;
+        else if (this.parent.parent.mrXToMove != this.parent.mrXToMove) gameVal = -gameVal;
         this.parent.backPropogate(gameVal);
     }
 
@@ -158,7 +158,7 @@ public class MCTSNode {
         if (this.parent.parent == null) {
             this.parent.backPropogate(0);
         }
-        else if (this.parent.parent.mrXToMove != this.parent.mrXToMove) gameVal = 1 - gameVal;
+        else if (this.parent.parent.mrXToMove != this.parent.mrXToMove) gameVal = -gameVal;
         this.parent.backPropogate(gameVal);
     }
 
