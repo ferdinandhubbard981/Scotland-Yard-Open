@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 
 public class Game {
     //found using python script to read graph.txt
+    boolean currentIsMrX;
     Set<Move> validMoves;
     private static final int POSSIBLEMOVES = 467; //TODO 467 is a mistake it doesn't take in account doubleMoves and SecretMoves
     //TODO instantiate moveMap in onStart() function using graph.txt
@@ -17,6 +18,7 @@ public class Game {
     public final Map<Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport>, Integer> moveMap; //maps every one of the $POSSIBLEMOVES to an integer
     public Game(Map<Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport>, Integer> moveMap) {
         this.moveMap = moveMap;
+        this.currentIsMrX = true;
     }
 
     public void setValidMoves(Board.GameState gameState) {
@@ -84,7 +86,10 @@ public class Game {
         Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
         if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
         else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
-        return gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        Board.GameState nextState = gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        this.setValidMoves(nextState);
+        this.currentIsMrX = updateCurrentPlayer();
+        return nextState;
     }
 
     public int getMoveIndex(Move move) {
@@ -139,7 +144,7 @@ public class Game {
         return gameState.toString(); //TODO do proper implementation (I do not think .toString() works)
     }
 
-    public Boolean isMaximisingForMrX() {
+    private Boolean updateCurrentPlayer() {
         return this.validMoves.stream().findAny().get().commencedBy().isMrX();
     }
 }

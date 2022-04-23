@@ -54,12 +54,11 @@ public class MCTS {
 
     public Float search(Board.GameState gameState) {
         //update valid moves so we only have to do it once
-        this.game.setValidMoves(gameState);
         String s = this.game.stringRepresentation(gameState);
 
         if (!this.es.containsKey(s)) this.es.put(s, this.game.getGameEnded(gameState));
         if (this.es.get(s) != 0) {
-            if (this.pxs.get(s) != this.game.isMaximisingForMrX()) return -1 * this.es.get(s).floatValue();
+            if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * this.es.get(s).floatValue();
             else return this.es.get(s).floatValue();
         }
 
@@ -110,7 +109,7 @@ public class MCTS {
         }
         Board.GameState nextState = this.game.getNextState(gameState, bestMoveIndex);
         //updating parent var of nextState
-        this.pxs.put(this.game.stringRepresentation(nextState), (this.game.isMaximisingForMrX()));
+        this.pxs.put(this.game.stringRepresentation(nextState), (this.game.currentIsMrX));
         float v = this.search(nextState);
         Pair<String, Integer> stateActionPair = new Pair<>(s, bestMoveIndex);
         if (this.qsa.containsKey(stateActionPair)) {
@@ -123,7 +122,7 @@ public class MCTS {
             this.nsa.put(stateActionPair, 1);
         }
         this.ns.put(s, this.ns.get(s)+1);
-        if (this.pxs.get(s) != this.game.isMaximisingForMrX()) return -1 * this.es.get(s).floatValue();
+        if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * this.es.get(s).floatValue();
         else return this.es.get(s).floatValue();
     }
 }

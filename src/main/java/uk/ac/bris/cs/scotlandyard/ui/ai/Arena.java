@@ -38,19 +38,17 @@ public class Arena {
             players.add(this.player2);
         }
 
-        int curPlayer = 0;
         //start new game
         //TODO make it random
         int it = 0;
         //while game not ended
         while (this.game.getGameEnded(gameState) == 0) {
             it++;
-            if (VERBOSE) System.out.printf("Turn %d Player %d%n", it, curPlayer);
+            if (VERBOSE) System.out.printf("Turn %d Player %d%n", it, this.game.currentIsMrX);
 
             //pick move
-            int moveIndex = this.game.getMoveIndex(players.get(curPlayer + 1).pickMove(gameState, MOVETIME));
-            //if 5 detectives 0, 1, 2, 3, 4, 0
-            curPlayer = (curPlayer + 1) % (numOfDetectives+1);//change player for next move
+            int aiIndex = (this.game.currentIsMrX) ? 0: 1;
+            int moveIndex = this.game.getMoveIndex(players.get(aiIndex).pickMove(gameState, MOVETIME));
             List<Integer> validMoves = this.game.getValidMoveIndexes();
             if (validMoves.get(moveIndex) == 0) {
                 //invalid move was selected
@@ -58,7 +56,6 @@ public class Arena {
                 assert(!validMoves.isEmpty());
             }
             gameState = this.game.getNextState(gameState, moveIndex);
-            this.game.setValidMoves(gameState);
         }
         if (VERBOSE) System.out.printf("Game Over at turn %d. MrXWon = %b", it, this.game.getGameEnded(gameState) == 1);
         return this.game.getGameEnded(gameState);//1 means mrX won
