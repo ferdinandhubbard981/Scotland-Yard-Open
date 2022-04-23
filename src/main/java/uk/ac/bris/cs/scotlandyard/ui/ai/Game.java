@@ -81,35 +81,37 @@ public class Game {
     }
 
     public Board.GameState getNextState(Board.GameState gameState, int moveIndex) {
-        Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> this.moveMap.get(getStrippedMove(move)) == moveIndex);
+        Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
         if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
         else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
-        return gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState that's inefficient apparently (make your own more efficient version?)
+        return gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
     }
 
-//    @param return List<Integer> len $POSSIBLEMOVES
-    public List<Integer> getValidMoveIndexes(Board.GameState gameState) {
+    public int getMoveIndex(Move move) {
+        return moveMap.get(getStrippedMove(move));
+    }
+    public List<Integer> getMaskedMove(Set<Move> moves ) {
         //populate moveMask with 0
         List<Integer> moveMask = Collections.nCopies(this.getActionSize(), 0);
-        List<Integer> validMoveIndexes = this.validMoves.stream().map(move -> moveMap.get(getStrippedMove(move))).toList();
-        for (int move : validMoveIndexes) {
-            moveMask.set(move, 1);
-        }
+        List<Integer> moveIndexes = moves.stream().map(this::getMoveIndex).toList();
+        for (int move : moveIndexes) moveMask.set(move, 1);
         return moveMask;
+    }
+//    @param return List<Integer> len $POSSIBLEMOVES
+    public List<Integer> getValidMoveIndexes() {
+        return getMaskedMove(this.validMoves);
     }
 
     ScotlandYard.Transport ticketToTransport(ScotlandYard.Ticket ticket) {
 
-        switch(ticket) {
-            case DOUBLE:
-                throw new IllegalArgumentException();
-            case SECRET:
-                return ScotlandYard.Transport.FERRY; //because we are marking Ferry == Secret therefore also marking all secret
-                //and non-ferry moves as the same thing ie: ferry move = secret move
-            case TAXI: return ScotlandYard.Transport.TAXI;
-            case BUS: return ScotlandYard.Transport.BUS;
-            default: return ScotlandYard.Transport.UNDERGROUND;
-        }
+        return switch (ticket) {
+            case DOUBLE -> throw new IllegalArgumentException();
+            case SECRET -> ScotlandYard.Transport.FERRY; //because we are marking Ferry == Secret therefore also marking all secret
+            //and non-ferry moves as the same thing ie: ferry move = secret move
+            case TAXI -> ScotlandYard.Transport.TAXI;
+            case BUS -> ScotlandYard.Transport.BUS;
+            default -> ScotlandYard.Transport.UNDERGROUND;
+        };
     }
     private Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport> getStrippedMove(Move move) {
         return move.accept(new Move.Visitor<>() {

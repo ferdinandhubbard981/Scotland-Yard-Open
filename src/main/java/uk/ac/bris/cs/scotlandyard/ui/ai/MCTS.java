@@ -68,7 +68,7 @@ public class MCTS {
             Pair<List<Float>, Float> predPair = this.nnet.predict(gameState);
             this.ps.put(s, predPair.getValue0());
             float v = predPair.getValue1();
-            List<Integer> valids = this.game.getValidMoveIndexes(gameState);
+            List<Integer> valids = this.game.getValidMoveIndexes();
             List<Float> maskedPolicy = this.ps.get(s);
             for (int i = 0; i < maskedPolicy.size(); i++) {
                 if (valids.get(i) == 0) maskedPolicy.set(i, 0f);
