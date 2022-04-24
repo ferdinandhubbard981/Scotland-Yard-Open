@@ -5,6 +5,8 @@ import uk.ac.bris.cs.scotlandyard.model.Board;
 
 import java.util.*;
 
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
+
 public class MCTS {
     private static final float EXPLORATIONCONSTANT = (float) Math.sqrt(2);
     Game game;
@@ -39,7 +41,7 @@ public class MCTS {
 
         //get moveMap of MoveVisits
         List<Integer> counts = new ArrayList<>();
-        for (int a = 0; a < Game.POSSIBLEMOVES; a++) {
+        for (int a = 0; a < POSSIBLEMOVES; a++) {
             Pair<String, Integer> pair = new Pair<>(s, a);
             if (this.nsa.containsKey(pair)) counts.add(nsa.get(pair));
             else counts.add(0);
@@ -64,7 +66,7 @@ public class MCTS {
 
         if (!this.ps.containsKey(s)) {
             //this means s is a leaf node
-            Pair<List<Float>, Float> predPair = this.nnet.predict(gameState.toNnetInput());
+            Pair<List<Float>, Float> predPair = this.nnet.predict(new NnetInput(gameState));
             this.ps.put(s, predPair.getValue0());
             float v = predPair.getValue1();
             List<Integer> valids = this.game.getValidMoveIndexes();
@@ -92,7 +94,7 @@ public class MCTS {
 
         //pick move with highest ucbval
         //TODO split into functions
-        for (int moveIndex = 0; moveIndex < this.game.getActionSize(); moveIndex++) {
+        for (int moveIndex = 0; moveIndex < POSSIBLEMOVES; moveIndex++) {
             if (valids.get(moveIndex) != 0) {
                 Pair<String, Integer> stateActionPair = new Pair<>(s, moveIndex);
                 float u = 0;

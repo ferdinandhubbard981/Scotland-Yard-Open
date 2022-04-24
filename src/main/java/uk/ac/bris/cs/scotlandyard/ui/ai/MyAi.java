@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.*;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.*;
+import uk.ac.bris.cs.scotlandyard.ui.ai.old.MCTSNode;
 
 public class MyAi implements Ai {
 	String filePath;

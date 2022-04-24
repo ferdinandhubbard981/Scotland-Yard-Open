@@ -88,10 +88,6 @@ public final class MyGameState implements Board.GameState {
         }
     }
 
-    public NnetInput toNnetInput() {
-        //TODO implement
-        return null;
-    }
     private ImmutableSet<Piece> getDetectivesAsImmutableSet(){
         return ImmutableSet.copyOf(this.detectives
                 .stream()

@@ -1,11 +1,10 @@
-package uk.ac.bris.cs.scotlandyard.ui.ai;
+package uk.ac.bris.cs.scotlandyard.ui.ai.old;
 
 
 import com.google.common.collect.*;
 import uk.ac.bris.cs.scotlandyard.model.*;
 import com.google.common.collect.ImmutableList;
 import uk.ac.bris.cs.scotlandyard.model.Board;
-import uk.ac.bris.cs.scotlandyard.ui.ai.old.Dijkstra;
 
 import java.util.*;
 import java.util.stream.Collectors;

@@ -28,9 +28,13 @@ public class TrainingEntry {
     public byte[] toBytes() throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.write(gameState.toBytes());
-        for (int i = 0; i < POSSIBLEMOVES; i++) {
+
+        output.write(policyValues.size());
+        for (int i = 0; i < policyValues.size(); i++) {
             output.write(policyValues.get(i).byteValue());
         }
+
+        output.write(gameOutcome);
         return output.toByteArray();
     }
 

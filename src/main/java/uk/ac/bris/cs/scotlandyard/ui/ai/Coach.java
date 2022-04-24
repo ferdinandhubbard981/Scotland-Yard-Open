@@ -50,7 +50,7 @@ public class Coach {
         while (gameOutcome == 0) {
             episodeStep++;
             List<Float> pi = this.mcts.getActionProb(gameState, NUMOFSIMS);
-            trainingExamples.add(new TrainingEntry(gameState.toNnetInput(), pi, 0)); //gameOutcome here is temporary and is overridden
+            trainingExamples.add(new TrainingEntry(new NnetInput(gameState), pi, 0)); //gameOutcome here is temporary and is overridden
 //            getting randomMove from all possible Moves
             List<Float> validMoveVals = pi.stream().filter(val -> val != 0).toList();
             float floatVal = validMoveVals.get(ThreadLocalRandom.current().nextInt(0, validMoveVals.size()));
@@ -78,7 +78,12 @@ public class Coach {
                     System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.trainingExamplesHistory.size());
                     this.trainingExamplesHistory.remove();
                 }
-                this.saveTrainExamples(i-1);
+                try {
+                    this.saveTrainExamples(i-1);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    System.exit(1);
+                }
                 List<TrainingEntry> trainingExamples = new ArrayList<>();
                 for (List<TrainingEntry> trainingExampleList : this.trainingExamplesHistory) {
                     trainingExamples.addAll(trainingExampleList);
@@ -116,27 +121,23 @@ public class Coach {
         return String.format("checkpoint_%d.pth.tar", iteration);
     }
 
-    public void saveTrainExamples(int iteration) {
+    public void saveTrainExamples(int iteration) throws IOException {
         //TODO implement
         // Creating binary file
         FileOutputStream fout= null;
-        try {
-            fout = new FileOutputStream("inventory.dat");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
+        fout = new FileOutputStream("inventory.dat");
         DataOutputStream dout=new DataOutputStream(fout);
+        //write num of elements for list reconstruction
+        dout.write(trainingExamplesHistory.size());
         for (List<TrainingEntry>  trainingExamples: trainingExamplesHistory) {
+            //write num of elements for list reconstruction
+            dout.write(trainingExamples.size());
             for (TrainingEntry trainingExample : trainingExamples) {
-                try {
-                    dout.write(trainingExample.toBytes());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    System.exit(1);
-                }
+                dout.write(trainingExample.toBytes());
             }
         }
+        dout.close();
+        fout.close();
     }
 
     public void loadTrainExamples() {
