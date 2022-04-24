@@ -14,7 +14,7 @@ public class NeuralNet {
 
     }
 
-    public Pair<List<Float>, Float> predict(Board.GameState gameState) {
+    public Pair<List<Float>, Float> predict(NnetInput gameState) {
         return null;
     }
 

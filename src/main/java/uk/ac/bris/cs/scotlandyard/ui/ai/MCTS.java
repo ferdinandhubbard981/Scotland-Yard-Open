@@ -29,7 +29,7 @@ public class MCTS {
         this.pxs = new HashMap<>();
     }
 
-    public List<Float> getActionProb(Board.GameState gameState, int numOfSims) {
+    public List<Float> getActionProb(MyGameState gameState, int numOfSims) {
         //performs $numOfSims iterations of MCTS from $gameState
         //returns policy vector
 
@@ -39,7 +39,7 @@ public class MCTS {
 
         //get moveMap of MoveVisits
         List<Integer> counts = new ArrayList<>();
-        for (int a = 0; a < game.getActionSize(); a++) {
+        for (int a = 0; a < Game.POSSIBLEMOVES; a++) {
             Pair<String, Integer> pair = new Pair<>(s, a);
             if (this.nsa.containsKey(pair)) counts.add(nsa.get(pair));
             else counts.add(0);
@@ -52,7 +52,7 @@ public class MCTS {
         return probs;
     }
 
-    public Float search(Board.GameState gameState) {
+    public Float search(MyGameState gameState) {
         //update valid moves so we only have to do it once
         String s = this.game.stringRepresentation(gameState);
 
@@ -64,7 +64,7 @@ public class MCTS {
 
         if (!this.ps.containsKey(s)) {
             //this means s is a leaf node
-            Pair<List<Float>, Float> predPair = this.nnet.predict(gameState);
+            Pair<List<Float>, Float> predPair = this.nnet.predict(gameState.toNnetInput());
             this.ps.put(s, predPair.getValue0());
             float v = predPair.getValue1();
             List<Integer> valids = this.game.getValidMoveIndexes();
@@ -107,7 +107,7 @@ public class MCTS {
                 }
             }
         }
-        Board.GameState nextState = this.game.getNextState(gameState, bestMoveIndex);
+        MyGameState nextState = this.game.getNextState(gameState, bestMoveIndex);
         //updating parent var of nextState
         this.pxs.put(this.game.stringRepresentation(nextState), (this.game.currentIsMrX));
         float v = this.search(nextState);

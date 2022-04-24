@@ -37,7 +37,7 @@ public class Arena {
         //performs one game
         //returns 1 if player1 wins, -1 if player2 wins
 
-        Board.GameState gameState = this.game.getInitBoard();
+        MyGameState gameState = this.game.getInitBoard();
 //        List<Ai> players = new ArrayList<>();
 //        players.add(this.player1);
 //        players.add(this.player2);

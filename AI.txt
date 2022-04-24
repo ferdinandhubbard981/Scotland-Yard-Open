@@ -3,7 +3,7 @@ PlayerList: 6 bits each representing one player
             only one of them can be one at a time
 
 Player:
-    tickets: 5 real numbers representing ticket count of {TAXI, BUS, UNDERGROUND, DOUBLE, SECRET}
+    tickets: 5 Integers representing ticket count of {TAXI, BUS, UNDERGROUND, DOUBLE, SECRET}
 
 
 inputs
@@ -12,7 +12,7 @@ inputs
 
 6 Player
 
-number of moves made by mrX since mrX reveal: continous integer
+numOfRoundsSinceReveal: continous integer
 
 output: real : [-1, 1] representing value of the state from mrX' perspective
 if mrX is winning the value will be closer to 1

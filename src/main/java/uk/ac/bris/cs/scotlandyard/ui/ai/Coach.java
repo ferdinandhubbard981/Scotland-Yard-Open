@@ -3,6 +3,10 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
+import java.io.DataOutputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Coach {
     private static final Float UPDATETHRESHOLD = 0.55f;
+    //!!!IF YOU CHANGE NUMITERSFORTRAININGEXAMPLESHISTORY then you must delete all PREVIOUS training examples
     private static final int NUMITERSFORTRAININGEXAMPLESHISTORY = 1;
     private static final int NUMOFSIMS = 20;
     private static final int NUMOFITER = 10;
@@ -39,13 +44,13 @@ public class Coach {
     public List<TrainingEntry> executeEpisode() {
 //        plays out a game and makes each move a new training example
         List<TrainingEntry> trainingExamples = new ArrayList<>();
-        Board.GameState gameState = this.game.getInitBoard();
+        MyGameState gameState = this.game.getInitBoard();
         int episodeStep = 0;
         int gameOutcome = 0;
         while (gameOutcome == 0) {
             episodeStep++;
             List<Float> pi = this.mcts.getActionProb(gameState, NUMOFSIMS);
-            trainingExamples.add(new TrainingEntry(gameState, pi, 0)); //gameOutcome here is temporary and is overridden
+            trainingExamples.add(new TrainingEntry(gameState.toNnetInput(), pi, 0)); //gameOutcome here is temporary and is overridden
 //            getting randomMove from all possible Moves
             List<Float> validMoveVals = pi.stream().filter(val -> val != 0).toList();
             float floatVal = validMoveVals.get(ThreadLocalRandom.current().nextInt(0, validMoveVals.size()));
@@ -112,6 +117,26 @@ public class Coach {
     }
 
     public void saveTrainExamples(int iteration) {
+        //TODO implement
+        // Creating binary file
+        FileOutputStream fout= null;
+        try {
+            fout = new FileOutputStream("inventory.dat");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        DataOutputStream dout=new DataOutputStream(fout);
+        for (List<TrainingEntry>  trainingExamples: trainingExamplesHistory) {
+            for (TrainingEntry trainingExample : trainingExamples) {
+                try {
+                    dout.write(trainingExample.toBytes());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    System.exit(1);
+                }
+            }
+        }
     }
 
     public void loadTrainExamples() {

@@ -1,5 +1,6 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import org.javatuples.Quintet;
 import uk.ac.bris.cs.scotlandyard.model.*;
 
@@ -11,7 +12,7 @@ public class Game {
     //found using python script to read graph.txt
     boolean currentIsMrX;
     Set<Move> validMoves;
-    private static final int POSSIBLEMOVES = 467; //TODO 467 is a mistake it doesn't take in account doubleMoves and SecretMoves
+    public static final int POSSIBLEMOVES = 467; //TODO 467 is a mistake it doesn't take in account doubleMoves and SecretMoves
     //TODO instantiate moveMap in onStart() function using graph.txt
     //moveMap: Quintet<source, dest1, dest2, transport1, transport2> -> Integer
     //if move is singleMove then dest2 = -1 and transport2 = null
@@ -21,10 +22,10 @@ public class Game {
         this.currentIsMrX = true;
     }
 
-    public void setValidMoves(Board.GameState gameState) {
+    public void setValidMoves(MyGameState gameState) {
         this.validMoves = gameState.getAvailableMoves();
     }
-    public Board.GameState getInitBoard() {
+    public MyGameState getInitBoard() {
         GameSetup setup = null;
         try {
             setup = new GameSetup(ScotlandYard.standardGraph(), ScotlandYard.STANDARD24MOVES);
@@ -38,7 +39,7 @@ public class Game {
             Player newDet = new Player(ScotlandYard.DETECTIVES.asList().get(i), ScotlandYard.defaultDetectiveTickets(), detectiveLocations.get(i));
             detectives.add(newDet);
         }
-        return new MyGameStateFactory().build(setup, mrX, ImmutableList.copyOf(detectives));
+        return new MyGameState(setup, ImmutableSet.of(mrX.piece()), ImmutableList.of(), mrX, ImmutableList.copyOf(detectives));
     }
 
 //    private Object getRandomTickets(boolean isMrX) {
@@ -78,15 +79,11 @@ public class Game {
 //        return null;
 //    }
 
-    public int getActionSize() {
-        return POSSIBLEMOVES;
-    }
-
-    public Board.GameState getNextState(Board.GameState gameState, int moveIndex) {
+    public MyGameState getNextState(MyGameState gameState, int moveIndex) {
         Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
         if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
         else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
-        Board.GameState nextState = gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        MyGameState nextState = gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
         this.setValidMoves(nextState);
         this.currentIsMrX = updateCurrentPlayer();
         return nextState;
@@ -97,7 +94,7 @@ public class Game {
     }
     public List<Integer> getMaskedMove(Set<Move> moves ) {
         //populate moveMask with 0
-        List<Integer> moveMask = Collections.nCopies(this.getActionSize(), 0);
+        List<Integer> moveMask = Collections.nCopies(POSSIBLEMOVES, 0);
         List<Integer> moveIndexes = moves.stream().map(this::getMoveIndex).toList();
         for (int move : moveIndexes) moveMask.set(move, 1);
         return moveMask;
@@ -131,7 +128,7 @@ public class Game {
 
     }
 
-    public int getGameEnded(Board.GameState gameState) {
+    public int getGameEnded(MyGameState gameState) {
         //no winner
         if (gameState.getWinner().isEmpty()) return 0;
         //mrX winner
@@ -140,7 +137,7 @@ public class Game {
         else return -1;
     }
 
-    public String stringRepresentation(Board.GameState gameState) {
+    public String stringRepresentation(MyGameState gameState) {
         return gameState.toString(); //TODO do proper implementation (I do not think .toString() works)
     }
 
