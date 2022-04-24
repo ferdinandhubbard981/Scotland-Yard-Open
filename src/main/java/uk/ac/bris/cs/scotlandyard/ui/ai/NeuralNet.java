@@ -10,7 +10,7 @@ public class NeuralNet {
 
     }
 
-    public void train(List< Triplet<Board.GameState, List<Float>, Integer> > examples) {
+    public void train(List<TrainingEntry> trainingExamples) {
 
     }
 

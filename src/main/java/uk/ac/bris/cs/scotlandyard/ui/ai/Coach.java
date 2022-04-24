@@ -1,21 +1,30 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
+import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Coach {
-    private static final int NUMOFSIMS = 800;
-    private static final int NUMOFITER = 767;
+    private static final Float UPDATETHRESHOLD = 0.55f;
+    private static final int NUMITERSFORTRAININGEXAMPLESHISTORY = 1;
+    private static final int NUMOFSIMS = 20;
+    private static final int NUMOFITER = 10;
+    private static final int NUMEPS = 1;
     private static final boolean SKIPFIRSTSELFPLAY = false;
+    private static final String SAVEFOLDER = "";
+    private static final int NUMOFGAMES = 100;
+
     Game game;
     NeuralNet nnet;
     NeuralNet pnet;
     MCTS mcts;
-    List<TrainingEntry> trainExamplesHistory;
+    Queue<List<TrainingEntry>> trainingExamplesHistory;
     boolean skipFirstSelfPlay;
 
     public Coach(Game game, NeuralNet nnet) {
@@ -23,7 +32,7 @@ public class Coach {
         this.nnet = nnet;
         this.pnet = new NeuralNet(this.game); //TODO check
         this.mcts = new MCTS(this.game, this.nnet);
-        this.trainExamplesHistory = new ArrayList<>();
+        this.trainingExamplesHistory = new SynchronousQueue<>();
         this.skipFirstSelfPlay = false;
     }
     //trainingExample: <gameState, ismrX, policy, gameOutcome>
@@ -54,18 +63,55 @@ public class Coach {
         for (int i = 0; i < NUMOFITER; i++) {
             System.out.printf("Iteration %d\n\n", i);
             if (!SKIPFIRSTSELFPLAY || i > 1) {
-                Queue<>
+                Queue<TrainingEntry> iterationTrainingExamples = new SynchronousQueue<>();
+                for (int j = 0; j < NUMEPS; j++) {
+                    this.mcts = new MCTS(this.game, this.nnet);
+                    iterationTrainingExamples.addAll(this.executeEpisode());
+                }
+                this.trainingExamplesHistory.add(iterationTrainingExamples.stream().toList());
+                if (this.trainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
+                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.trainingExamplesHistory.size());
+                    this.trainingExamplesHistory.remove();
+                }
+                this.saveTrainExamples(i-1);
+                List<TrainingEntry> trainingExamples = new ArrayList<>();
+                for (List<TrainingEntry> trainingExampleList : this.trainingExamplesHistory) {
+                    trainingExamples.addAll(trainingExampleList);
+                }
+                Collections.shuffle(trainingExamples);
+                this.nnet.save_checkpoint(SAVEFOLDER, "temp.pth.tar");
+                this.pnet.load_checkpoint(SAVEFOLDER, "temp.pth.tar");
+                MCTS pmcts = new MCTS(this.game, this.pnet);
+                this.nnet.train(trainingExamples);
+                MCTS nmcts = new MCTS(this.game, this.nnet);
+
+                System.out.printf("pitting against previous version");
+                Arena arena = new Arena(nmcts, pmcts, this.game);
+                Pair<Integer, Integer> playthroughOutcomes = arena.playGames(NUMOFGAMES, NUMOFSIMS);
+                System.out.printf("\n\nnewAi:\nwins: %d\nlosses: %d\n\n", playthroughOutcomes.left(), playthroughOutcomes.right());
+                int total = playthroughOutcomes.left() + playthroughOutcomes.right();
+                float winrate = (float)playthroughOutcomes.left() / total;
+                if (total == 0 || winrate < UPDATETHRESHOLD){
+                    System.out.printf("\n\nRejecting model wr: %f", winrate);
+                    this.nnet.load_checkpoint(SAVEFOLDER, "temp.pth.tar");
+                }
+                else {
+                    System.out.printf("\n\nAccepting model wr: %f", winrate);
+                    this.nnet.save_checkpoint(SAVEFOLDER, this.getCheckpointFile(i));
+                    this.nnet.save_checkpoint(SAVEFOLDER, "temp.pth.tar");
+                    }
+                }
+
             }
 
         }
-    }
+
 
     public String getCheckpointFile(int iteration) {
         return String.format("checkpoint_%d.pth.tar", iteration);
     }
 
     public void saveTrainExamples(int iteration) {
-
     }
 
     public void loadTrainExamples() {

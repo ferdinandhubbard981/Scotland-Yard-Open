@@ -18,25 +18,32 @@ public class Arena {
     Ai player1;
     Ai player2;
     Game game;
-    public Arena(String ai1Name, String ai2Name, Game game) {
-        ImmutableList<Ai> ais = scanAis();
-        this.player1 = ais.stream().filter(ai -> ai.name().equals(ai1Name)).findAny().get(); //player1 is always mrX because he plays first
-        this.player2 = ais.stream().filter(ai -> ai.name().equals(ai2Name)).findAny().get();
+    MCTS mcts1;
+    MCTS mcts2;
+//    public Arena(String ai1Name, String ai2Name, Game game) {
+//        ImmutableList<Ai> ais = scanAis();
+//        this.player1 = ais.stream().filter(ai -> ai.name().equals(ai1Name)).findAny().get(); //player1 is always mrX because he plays first
+//        this.player2 = ais.stream().filter(ai -> ai.name().equals(ai2Name)).findAny().get();
+//        this.game = game;
+//    }
+
+    public Arena(MCTS mcts1, MCTS mcts2, Game game) {
+        this.mcts1 = mcts1;
+        this.mcts2 = mcts2;
         this.game = game;
     }
 
-    Integer playGame() {
+    Integer playGame(int numOfSims) {
         //performs one game
         //returns 1 if player1 wins, -1 if player2 wins
 
         Board.GameState gameState = this.game.getInitBoard();
-        int numOfDetectives = gameState.getPlayers().stream().filter(Piece::isDetective).toList().size();
-
-        List<Ai> players = new ArrayList<>();
-        players.add(this.player1);
-        for (int i = 0; i < numOfDetectives; i++) {
-            players.add(this.player2);
-        }
+//        List<Ai> players = new ArrayList<>();
+//        players.add(this.player1);
+//        players.add(this.player2);
+        List<MCTS> players = new ArrayList<>();
+        players.add(this.mcts1);
+        players.add(this.mcts2);
 
         //start new game
         //TODO make it random
@@ -48,7 +55,11 @@ public class Arena {
 
             //pick move
             int aiIndex = (this.game.currentIsMrX) ? 0: 1;
-            int moveIndex = this.game.getMoveIndex(players.get(aiIndex).pickMove(gameState, MOVETIME));
+//            int moveIndex = this.game.getMoveIndex(players.get(aiIndex).pickMove(gameState, MOVETIME));
+            List<Float> policy = players.get(aiIndex).getActionProb(gameState, numOfSims);
+            Float highestPolicyVal = policy.stream()
+                    .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
+            int moveIndex = policy.indexOf(highestPolicyVal);
             List<Integer> validMoves = this.game.getValidMoveIndexes();
             if (validMoves.get(moveIndex) == 0) {
                 //invalid move was selected
@@ -61,12 +72,12 @@ public class Arena {
         return this.game.getGameEnded(gameState);//1 means mrX won
     }
 
-    Pair<Integer, Integer> playGames(int numOfGames) {
+    Pair<Integer, Integer> playGames(int numOfGames, int numOfSims) {
         numOfGames /= 2;
         int p1Won = 0;
         int p2Won = 0;
         for (int i = 0; i < numOfGames; i++) {
-            int gameResult = this.playGame();
+            int gameResult = this.playGame(numOfSims);
             if (gameResult == 1) p1Won++;
             else p2Won++;
         }
@@ -77,7 +88,7 @@ public class Arena {
         this.player2 = temp;
 
         for (int i = 0; i < numOfGames; i++) {
-            int gameResult = this.playGame();
+            int gameResult = this.playGame(numOfSims);
             if (gameResult == 1) p2Won++; //p2 is mrX now
             else p1Won++;
         }
