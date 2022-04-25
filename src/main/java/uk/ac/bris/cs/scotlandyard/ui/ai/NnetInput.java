@@ -1,27 +1,29 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
-import ch.qos.logback.core.joran.spi.ConsoleTarget;
-import uk.ac.bris.cs.scotlandyard.model.Board;
-
-import javax.xml.crypto.Data;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.PLAYERSINPUTSIZE;
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.TICKETSINPUTSIZE;
+
 //@param board 2d vector of one hot encoded players (6 bits, 1 for each player)
 public class NnetInput {
-    private static final int PLAYERSINPUTSIZE = 6;
-    private static final int TICKETSINPUTSIZE = 5;
     List<List<Integer>> board; //6 Ints
-    List<List<Integer>> players;
+    List<List<Integer>> playerTickets;
     Integer numOfRoundsSinceReveal;
 
 
-    public NnetInput(MyGameState gameState) {
-        //TODO convert gameState to Nnet input
-
+    public NnetInput(Game game) {
+//        game should already have gameState in it;
+//        board
+        this.board = game.getEncodedBoard();
+//        playerTickets
+        this.playerTickets = game.getEncodedPlayerTickets();
+//        numOfRoundsSinceReveal
+        this.numOfRoundsSinceReveal = game.getNumOfRoundsSinceReveal();
     }
 
     public NnetInput(DataInputStream din) throws IOException {
@@ -36,7 +38,7 @@ public class NnetInput {
             newBoard.add(node);
         }
         this.board = newBoard;
-//        players
+//        playerTickets
         List<List<Integer>> newPlayers = new ArrayList<>();
         for (int i = 0; i < PLAYERSINPUTSIZE; i++) {
             List<Integer> playerTickets = new ArrayList<>();
@@ -45,13 +47,12 @@ public class NnetInput {
             }
             newPlayers.add(playerTickets);
         }
-        this.players = newPlayers;
+        this.playerTickets = newPlayers;
 //        numOfRoundsSinceReveal
         this.numOfRoundsSinceReveal = din.readInt();
     }
 
     public byte[] toBytes() {
-        //TODO
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 //        board
         output.write(this.board.size());
@@ -61,9 +62,9 @@ public class NnetInput {
                 output.write(pos.get(i));
             }
         }
-//        players
-        assert(this.players.size() == PLAYERSINPUTSIZE);
-        for (List<Integer> tickets : this.players) {
+//        playerTickets
+        assert(this.playerTickets.size() == PLAYERSINPUTSIZE);
+        for (List<Integer> tickets : this.playerTickets) {
             assert(tickets.size() == TICKETSINPUTSIZE);
             for (Integer ticket : tickets) {
                 output.write(ticket);

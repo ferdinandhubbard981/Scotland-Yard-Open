@@ -1,16 +1,10 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
-import com.google.common.collect.ImmutableList;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.Ai;
-import uk.ac.bris.cs.scotlandyard.model.Board;
-import uk.ac.bris.cs.scotlandyard.model.Piece;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import static uk.ac.bris.cs.scotlandyard.ResourceManager.scanAis;
 
 public class Arena {
     private static final boolean VERBOSE = true;
@@ -27,7 +21,7 @@ public class Arena {
 //        this.game = game;
 //    }
 
-    public Arena(MCTS mcts1, MCTS mcts2, Game game) {
+    public Arena(Game game, MCTS mcts1, MCTS mcts2) {
         this.mcts1 = mcts1;
         this.mcts2 = mcts2;
         this.game = game;
@@ -37,7 +31,7 @@ public class Arena {
         //performs one game
         //returns 1 if player1 wins, -1 if player2 wins
 
-        MyGameState gameState = this.game.getInitBoard();
+        this.game.getInitBoard();
 //        List<Ai> players = new ArrayList<>();
 //        players.add(this.player1);
 //        players.add(this.player2);
@@ -46,30 +40,31 @@ public class Arena {
         players.add(this.mcts2);
 
         //start new game
-        //TODO make it random
+        //TODO pit mrX vs Det
         int it = 0;
         //while game not ended
-        while (this.game.getGameEnded(gameState) == 0) {
+        while (this.game.getGameEnded() == 0) {
             it++;
             if (VERBOSE) System.out.printf("Turn %d Player %d%n", it, this.game.currentIsMrX);
 
             //pick move
             int aiIndex = (this.game.currentIsMrX) ? 0: 1;
 //            int moveIndex = this.game.getMoveIndex(players.get(aiIndex).pickMove(gameState, MOVETIME));
-            List<Float> policy = players.get(aiIndex).getActionProb(gameState, numOfSims);
+            List<Float> policy = players.get(aiIndex).getActionProb(this.game, numOfSims);
             Float highestPolicyVal = policy.stream()
                     .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
             int moveIndex = policy.indexOf(highestPolicyVal);
-            List<Integer> validMoves = this.game.getValidMoveIndexes();
-            if (validMoves.get(moveIndex) == 0) {
+            List<Integer> validMoveTable = this.game.getValidMoveTable();
+            if (validMoveTable.get(moveIndex) == 0) {
                 //invalid move was selected
                 System.out.printf("\n\nmove %d is invalid\n\n", moveIndex);
-                assert(!validMoves.isEmpty());
+                //check that there is at least 1 valid move. if not the game should have ended
+                assert(validMoveTable.stream().anyMatch(num -> num == 1));
             }
-            gameState = this.game.getNextState(gameState, moveIndex);
+            this.game.getNextState(moveIndex);
         }
-        if (VERBOSE) System.out.printf("Game Over at turn %d. MrXWon = %b", it, this.game.getGameEnded(gameState) == 1);
-        return this.game.getGameEnded(gameState);//1 means mrX won
+        if (VERBOSE) System.out.printf("Game Over at turn %d. MrXWon = %b", it, this.game.getGameEnded() == 1);
+        return this.game.getGameEnded();//1 means mrX won
     }
 
     Pair<Integer, Integer> playGames(int numOfGames, int numOfSims) {

@@ -221,7 +221,8 @@ public final class MyGameState implements Board.GameState {
     }
 
     @Override
-    public MyGameState advance(Move move) {
+    public MyGameState advance(Move move) { //TODO make function void and only update current gamestate
+//        TODO instead of returning a new one. This should be more efficient because constructors are greedy?
         if (!moves.contains(move)) throw new IllegalArgumentException("Illegal move: " + move);
 
         if (move.commencedBy() == this.mrX.piece()) {

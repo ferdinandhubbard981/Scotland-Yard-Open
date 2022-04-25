@@ -1,7 +1,6 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 import org.javatuples.Pair;
-import uk.ac.bris.cs.scotlandyard.model.Board;
 
 import java.util.*;
 
@@ -9,35 +8,37 @@ import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
 public class MCTS {
     private static final float EXPLORATIONCONSTANT = (float) Math.sqrt(2);
-    Game game;
-    NeuralNet nnet;
+    NeuralNet mrXNnet;
+    NeuralNet detNnet;
+    Game permGame;
     Map<Pair<String, Integer>, Float> qsa; //Pair<GameState, Move> -> QValue
     Map<Pair<String, Integer>, Integer> nsa; //Pair<GameState, Move> -> numOfVisits
     Map<String, Integer> ns; //GameState -> numOfVisits
     Map<String, List<Float>> ps; //GameState -> policy
-    Map<String, Integer> es; //GameState -> (int)?gameEnded?
     Map<String, List<Integer>> vs; //GameState -> valid moves
-    Map<String, Boolean> pxs; //GameState -> ?parent maximising for mrX?
+    Map<String, Integer> es; // GameState -> gameStatus 0 = running 1 = current won, -1 = current lost
+    Map<String, Boolean> pxs; //GameState -> ?parent current player is mrX?
 
-    public MCTS(Game game, NeuralNet nnet) {
-        this.game = game;
-        this.nnet = nnet;
+    public MCTS(NeuralNet mrXNnet, NeuralNet detNnet) {
+        this.mrXNnet = mrXNnet;
+        this.detNnet = detNnet;
         this.qsa = new HashMap<>();
         this.nsa = new HashMap<>();
         this.ns = new HashMap<>();
         this.ps = new HashMap<>();
-        this.es = new HashMap<>();
         this.vs = new HashMap<>();
+        this.es = new HashMap<>();
         this.pxs = new HashMap<>();
     }
 
-    public List<Float> getActionProb(MyGameState gameState, int numOfSims) {
+    public List<Float> getActionProb(Game game, int numOfSims) {
+        this.permGame = game;
         //performs $numOfSims iterations of MCTS from $gameState
         //returns policy vector
 
         //perform MCTS searches
-        for (int i = 0; i < numOfSims; i++) this.search(gameState);
-        String s = this.game.stringRepresentation(gameState);
+        for (int i = 0; i < numOfSims; i++) this.search();
+        final String s = this.permGame.stringRepresentation();
 
         //get moveMap of MoveVisits
         List<Integer> counts = new ArrayList<>();
@@ -54,77 +55,93 @@ public class MCTS {
         return probs;
     }
 
-    public Float search(MyGameState gameState) {
-        //update valid moves so we only have to do it once
-        String s = this.game.stringRepresentation(gameState);
+    public Integer search() {
+        //string representation of gamestate for hashmaps
+        final String s = this.permGame.stringRepresentation();
 
-        if (!this.es.containsKey(s)) this.es.put(s, this.game.getGameEnded(gameState));
-        if (this.es.get(s) != 0) {
-            if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * this.es.get(s).floatValue();
-            else return this.es.get(s).floatValue();
+        //check game ended
+        if (es.containsKey(s)) es.put(s, this.permGame.getGameEnded());
+        if (es.get(s) != 0) {
+            if (this.pxs.get(s) != this.permGame.currentIsMrX) return -1 * es.get(s);
+            else return es.get(s);
         }
 
+        //check if leaf node
         if (!this.ps.containsKey(s)) {
             //this means s is a leaf node
-            Pair<List<Float>, Float> predPair = this.nnet.predict(new NnetInput(gameState));
+            Pair<List<Float>, Float> predPair;
+            if (this.permGame.currentIsMrX) predPair = this.mrXNnet.predict(new NnetInput(this.permGame));
+            else predPair = this.detNnet.predict(new NnetInput(this.permGame));
             this.ps.put(s, predPair.getValue0());
             float v = predPair.getValue1();
-            List<Integer> valids = this.game.getValidMoveIndexes();
+            List<Integer> validMoveTable = this.permGame.getValidMoveTable();
             List<Float> maskedPolicy = this.ps.get(s);
+            //policy is masked by setting invalid moves to a policy value of 0f (nnet is not 100% accurate)
             for (int i = 0; i < maskedPolicy.size(); i++) {
-                if (valids.get(i) == 0) maskedPolicy.set(i, 0f);
+                if (validMoveTable.get(i) == 0) maskedPolicy.set(i, 0f);
             }
-            this.ps.put(s, maskedPolicy); //removing invalid moves from policy (that came from nnet)
+//          update policy in hashmap with the new masked policy
+            this.ps.put(s, maskedPolicy);
             //sum of policy
             Float pssSum = this.ps.get(s).stream().reduce(0f, (total, element) -> total += element);
             //normalize policy
             if (pssSum > 0) this.ps.put(s, this.ps.get(s).stream().map(val -> val / pssSum).toList());
             else {
                 System.err.println("\n\nall moves were masked nnet might be inadequate\n\n");
-                //putting valids as policy + normalizing them
-                this.ps.put(s, valids.stream().map(val -> val / pssSum).toList());
+                //putting validMoveTable as policy + normalizing them
+                this.ps.put(s, validMoveTable.stream().map(val -> val / pssSum).toList());
             }
-            this.vs.put(s, valids);
+            this.vs.put(s, validMoveTable);
             this.ns.put(s, 0);
         }
 
-        List<Integer> valids = this.vs.get(s);
-        float bestMoveVal = Float.MIN_VALUE;
+        List<Integer> validMoveIndexes = this.vs.get(s);
+        float bestUCBVal = Float.MIN_VALUE;
         int bestMoveIndex = -1;
 
         //pick move with highest ucbval
         //TODO split into functions
         for (int moveIndex = 0; moveIndex < POSSIBLEMOVES; moveIndex++) {
-            if (valids.get(moveIndex) != 0) {
+            if (validMoveIndexes.get(moveIndex) != 0) {
                 Pair<String, Integer> stateActionPair = new Pair<>(s, moveIndex);
-                float u = 0;
+                float ucbVal;
                 if (this.qsa.containsKey(stateActionPair)) {
-                    u = (float) (this.qsa.get(stateActionPair) + EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s))
+                    ucbVal = (float) (this.qsa.get(stateActionPair) + EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s))
                             / (1 + this.nsa.get(stateActionPair)));
                 }
-                else u = (float)(EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s) + 1e-8));
-                if (u > bestMoveVal) {
-                    bestMoveVal = u;
+                else ucbVal = (float)(EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s) + 1e-8));
+                if (ucbVal > bestUCBVal) {
+                    bestUCBVal = ucbVal;
                     bestMoveIndex = moveIndex;
                 }
             }
         }
-        MyGameState nextState = this.game.getNextState(gameState, bestMoveIndex);
-        //updating parent var of nextState
-        this.pxs.put(this.game.stringRepresentation(nextState), (this.game.currentIsMrX));
-        float v = this.search(nextState);
+        Boolean currentIsMrX = this.permGame.currentIsMrX; //saving who current player is because this.game is updated to next state
+        this.permGame.getNextState(bestMoveIndex); //AT THIS POINT THIS.PERMGAME IS UPDATED to the next state
+
+        //storing current player of next state parent in hashmap
+        this.pxs.put(this.permGame.stringRepresentation(), this.permGame.currentIsMrX);
+
+        //TODO recursion optimization. Delete game instance for this when we go to next
+        Integer v = this.search();
         Pair<String, Integer> stateActionPair = new Pair<>(s, bestMoveIndex);
         if (this.qsa.containsKey(stateActionPair)) {
+            //is not leaf node
+            //updating qval and nval
+            //(n * q + v) / (n+1)
             Float newQVal = (this.nsa.get(stateActionPair) * this.qsa.get(stateActionPair) + v) / (this.nsa.get(stateActionPair) + 1);
+
             this.qsa.put(stateActionPair, newQVal);
             this.nsa.put(stateActionPair, this.nsa.get(stateActionPair)+1);
         }
         else {
-            this.qsa.put(stateActionPair, v);
+            //is leaf node
+            //creating qval and nval
+            this.qsa.put(stateActionPair, v.floatValue());
             this.nsa.put(stateActionPair, 1);
         }
         this.ns.put(s, this.ns.get(s)+1);
-        if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * this.es.get(s).floatValue();
-        else return this.es.get(s).floatValue();
+        if (this.pxs.get(s) != currentIsMrX) return -1 * v;
+        else return v;
     }
 }

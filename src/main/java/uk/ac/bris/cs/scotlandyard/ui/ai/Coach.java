@@ -34,27 +34,28 @@ public class Coach {
         this.game = game;
         this.nnet = nnet;
         this.pnet = new NeuralNet(this.game); //TODO check
-        this.mcts = new MCTS(this.game, this.nnet);
+        this.mcts = new MCTS(this.nnet);
         this.trainingExamplesHistory = new SynchronousQueue<>();
         this.skipFirstSelfPlay = false;
     }
     //trainingExample: <gameState, ismrX, policy, gameOutcome>
     public List<TrainingEntry> executeEpisode() {
+        //TODO sort examples into two lists. One for mrXNnet one for detNnet
 //        plays out a game and makes each move a new training example
         List<TrainingEntry> trainingExamples = new ArrayList<>();
-        MyGameState gameState = this.game.getInitBoard();
+        this.game.getInitBoard();
         int episodeStep = 0;
         int gameOutcome = 0;
         while (gameOutcome == 0) {
             episodeStep++;
-            List<Float> pi = this.mcts.getActionProb(gameState, NUMOFSIMS);
-            trainingExamples.add(new TrainingEntry(new NnetInput(gameState), pi, 0)); //gameOutcome here is temporary and is overridden
+            List<Float> pi = this.mcts.getActionProb(this.game, NUMOFSIMS);
+            trainingExamples.add(new TrainingEntry(new NnetInput(this.game), pi, 0)); //gameOutcome here is temporary and is overridden
 //            getting randomMove from all possible Moves
             List<Float> validMoveVals = pi.stream().filter(val -> val != 0).toList();
             float floatVal = validMoveVals.get(ThreadLocalRandom.current().nextInt(0, validMoveVals.size()));
             int moveIndex = pi.indexOf(floatVal);//TODO check but it should be a valid move
-            gameState = this.game.getNextState(gameState, moveIndex);
-            gameOutcome = this.game.getGameEnded(gameState); //1 is always mrX -1 is always det
+            this.game.getNextState(moveIndex);
+            gameOutcome = this.game.getGameEnded(); //1 is always mrX -1 is always det
 
         }
         for (TrainingEntry trainingExample : trainingExamples)
@@ -68,7 +69,7 @@ public class Coach {
             if (!SKIPFIRSTSELFPLAY || i > 1) {
                 Queue<TrainingEntry> iterationTrainingExamples = new SynchronousQueue<>();
                 for (int j = 0; j < NUMEPS; j++) {
-                    this.mcts = new MCTS(this.game, this.nnet);
+                    this.mcts = new MCTS(this.nnet);
                     iterationTrainingExamples.addAll(this.executeEpisode());
                 }
                 this.trainingExamplesHistory.add(iterationTrainingExamples.stream().toList());
@@ -89,12 +90,12 @@ public class Coach {
                 Collections.shuffle(trainingExamples);
                 this.nnet.save_checkpoint(SAVEFOLDER, "temp.pth.tar");
                 this.pnet.load_checkpoint(SAVEFOLDER, "temp.pth.tar");
-                MCTS pmcts = new MCTS(this.game, this.pnet);
+                MCTS pmcts = new MCTS(this.pnet);
                 this.nnet.train(trainingExamples);
-                MCTS nmcts = new MCTS(this.game, this.nnet);
+                MCTS nmcts = new MCTS(this.nnet);
 
                 System.out.printf("pitting against previous version");
-                Arena arena = new Arena(nmcts, pmcts, this.game);
+                Arena arena = new Arena(this.game, nmcts, pmcts);
                 Pair<Integer, Integer> playthroughOutcomes = arena.playGames(NUMOFGAMES, NUMOFSIMS);
                 System.out.printf("\n\nnewAi:\nwins: %d\nlosses: %d\n\n", playthroughOutcomes.left(), playthroughOutcomes.right());
                 int total = playthroughOutcomes.left() + playthroughOutcomes.right();
@@ -120,7 +121,6 @@ public class Coach {
     }
 
     public void saveTrainExamples(int iteration) throws IOException {
-        //TODO implement
         // Creating binary file
         FileOutputStream fout = new FileOutputStream(getCheckpointFile(iteration) + ".examples");
         DataOutputStream dout=new DataOutputStream(fout);

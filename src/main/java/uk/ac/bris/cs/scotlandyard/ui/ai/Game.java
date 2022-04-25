@@ -10,9 +10,17 @@ import java.util.stream.Stream;
 
 public class Game {
     //found using python script to read graph.txt
+    MyGameState currentState;
     boolean currentIsMrX;
     Set<Move> validMoves;
     public static final int POSSIBLEMOVES = 467; //TODO 467 is a mistake it doesn't take in account doubleMoves and SecretMoves
+
+    //VALUES FOR NNET ENCODING OF BOARD
+    private static final int NUMOFNODESINGRAPH = 199;
+    public static final int NNETINPUTBOARDSIZE = NUMOFNODESINGRAPH+1; //NODE 0 is representative of unknown location
+    public static final int PLAYERSINPUTSIZE = 6;
+    public static final int TICKETSINPUTSIZE = 5;
+
     //TODO instantiate moveMap in onStart() function using graph.txt
     //moveMap: Quintet<source, dest1, dest2, transport1, transport2> -> Integer
     //if move is singleMove then dest2 = -1 and transport2 = null
@@ -22,10 +30,11 @@ public class Game {
         this.currentIsMrX = true;
     }
 
-    public void setValidMoves(MyGameState gameState) {
-        this.validMoves = gameState.getAvailableMoves();
+    public void setValidMoves() {
+        this.validMoves = this.currentState.getAvailableMoves();
     }
-    public MyGameState getInitBoard() {
+    //TODO randomize game setup
+    public void getInitBoard() {
         GameSetup setup = null;
         try {
             setup = new GameSetup(ScotlandYard.standardGraph(), ScotlandYard.STANDARD24MOVES);
@@ -39,7 +48,9 @@ public class Game {
             Player newDet = new Player(ScotlandYard.DETECTIVES.asList().get(i), ScotlandYard.defaultDetectiveTickets(), detectiveLocations.get(i));
             detectives.add(newDet);
         }
-        return new MyGameState(setup, ImmutableSet.of(mrX.piece()), ImmutableList.of(), mrX, ImmutableList.copyOf(detectives));
+        this.currentState = new MyGameState(setup, ImmutableSet.of(mrX.piece()), ImmutableList.of(), mrX, ImmutableList.copyOf(detectives));
+        this.setValidMoves();
+        this.currentIsMrX = updateCurrentPlayer();
     }
 
 //    private Object getRandomTickets(boolean isMrX) {
@@ -79,20 +90,20 @@ public class Game {
 //        return null;
 //    }
 
-    public MyGameState getNextState(MyGameState gameState, int moveIndex) {
+    public void getNextState(int moveIndex) {
         Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
         if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
         else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
-        MyGameState nextState = gameState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
-        this.setValidMoves(nextState);
+        this.currentState = this.currentState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        this.setValidMoves();
         this.currentIsMrX = updateCurrentPlayer();
-        return nextState;
     }
 
     public int getMoveIndex(Move move) {
         return moveMap.get(getStrippedMove(move));
     }
-    public List<Integer> getMaskedMove(Set<Move> moves ) {
+
+    public List<Integer> getMoveTable(Set<Move> moves) {
         //populate moveMask with 0
         List<Integer> moveMask = Collections.nCopies(POSSIBLEMOVES, 0);
         List<Integer> moveIndexes = moves.stream().map(this::getMoveIndex).toList();
@@ -100,8 +111,8 @@ public class Game {
         return moveMask;
     }
 //    @param return List<Integer> len $POSSIBLEMOVES
-    public List<Integer> getValidMoveIndexes() {
-        return getMaskedMove(this.validMoves);
+    public List<Integer> getValidMoveTable() {
+        return getMoveTable(this.validMoves);
     }
 
     ScotlandYard.Transport ticketToTransport(ScotlandYard.Ticket ticket) {
@@ -128,20 +139,48 @@ public class Game {
 
     }
 
-    public int getGameEnded(MyGameState gameState) {
+    public int getGameEnded() {
         //no winner
-        if (gameState.getWinner().isEmpty()) return 0;
-        //mrX winner
-        else if (gameState.getWinner().stream().anyMatch(piece -> piece.isMrX())) return 1;
-        //detective Winners
+        if (this.currentState.getWinner().isEmpty()) return 0;
+        //Winner == current player
+        else if (this.currentState.getWinner().stream().anyMatch(Piece::isMrX) == this.currentIsMrX) return 1;
+        //Winner != current player
         else return -1;
     }
 
-    public String stringRepresentation(MyGameState gameState) {
-        return gameState.toString(); //TODO do proper implementation (I do not think .toString() works)
+    public String stringRepresentation() {
+        return this.currentState.toString(); //TODO check if this is enough for hashmap (needs to generate a unique key)
     }
 
     private Boolean updateCurrentPlayer() {
         return this.validMoves.stream().findAny().get().commencedBy().isMrX();
     }
+
+    public List<List<Integer>> getEncodedBoard() {
+//        TODO
+        List<List<Integer>> board = Collections.nCopies(NNETINPUTBOARDSIZE, Collections.nCopies(PLAYERSINPUTSIZE, 0));
+//        get player locations
+        List<Integer> playerLocations = new ArrayList<>(); //playerLocationsList ORDER is as Follows: MRX, RED, GREEN, BLUE, WHITE, YELLOW
+//        getting mrX location. NOTE: location 0 means mrX location is unknown
+        ImmutableList<LogEntry> mrXTravelLog = this.currentState.getMrXTravelLog();
+        if (!mrXTravelLog.isEmpty()) {
+            //mrX location is not unknown
+//            playerLocations.set(0, this.currentState.getMrXTravelLog().)
+        }
+//        encode players
+        return board;
+    }
+
+
+    public List<List<Integer>> getEncodedPlayerTickets() {
+//        TODO
+        return null;
+    }
+
+    public Integer getNumOfRoundsSinceReveal() {
+//        TODO
+        return null;
+    }
 }
+
+
