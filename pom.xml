@@ -39,6 +39,19 @@
             <version>1.2</version>
         </dependency>
 
+<!--        <dependency>-->
+<!--            <groupId>org.tensorflow</groupId>-->
+<!--            <artifactId>tensorflow</artifactId>-->
+<!--            <version>1.13.1</version>-->
+<!--        </dependency>-->
+
+<!--        <dependency>-->
+<!--            <groupId>org.tensorflow</groupId>-->
+<!--            <artifactId>libtensorflow_jni_gpu</artifactId>-->
+<!--            <version>1.7.0</version>-->
+<!--        </dependency>-->
+
+
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-platform-mkl-gpu</artifactId>

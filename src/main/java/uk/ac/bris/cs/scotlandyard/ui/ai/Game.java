@@ -16,8 +16,7 @@ public class Game {
     public static final int POSSIBLEMOVES = 467; //TODO 467 is a mistake it doesn't take in account doubleMoves and SecretMoves
 
     //VALUES FOR NNET ENCODING OF BOARD
-    private static final int NUMOFNODESINGRAPH = 199;
-    public static final int NNETINPUTBOARDSIZE = NUMOFNODESINGRAPH+1; //NODE 0 is representative of unknown location
+    public static final int NNETINPUTBOARDSIZE = 199;
     public static final int PLAYERSINPUTSIZE = 6;
     public static final int TICKETSINPUTSIZE = 5;
 
@@ -33,7 +32,12 @@ public class Game {
     public void setValidMoves() {
         this.validMoves = this.currentState.getAvailableMoves();
     }
+
     //TODO randomize game setup
+    //randomize numOfDetectives [1, 5]
+    //randomize numOfTickets [1, 100]
+    //randomize numOfRounds
+    //randomize numOfReveal rounds and when they occur
     public void getInitBoard() {
         GameSetup setup = null;
         try {
@@ -94,7 +98,7 @@ public class Game {
         Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
         if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
         else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
-        this.currentState = this.currentState.advance(filteredMoves.findAny().get()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        this.currentState = this.currentState.advance(filteredMoves.findAny().orElseThrow()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
         this.setValidMoves();
         this.currentIsMrX = updateCurrentPlayer();
     }
@@ -153,33 +157,103 @@ public class Game {
     }
 
     private Boolean updateCurrentPlayer() {
-        return this.validMoves.stream().findAny().get().commencedBy().isMrX();
+        return this.validMoves.stream().findAny().orElseThrow().commencedBy().isMrX();
     }
 
     public List<List<Integer>> getEncodedBoard() {
-//        TODO
         List<List<Integer>> board = Collections.nCopies(NNETINPUTBOARDSIZE, Collections.nCopies(PLAYERSINPUTSIZE, 0));
-//        get player locations
-        List<Integer> playerLocations = new ArrayList<>(); //playerLocationsList ORDER is as Follows: MRX, RED, GREEN, BLUE, WHITE, YELLOW
-//        getting mrX location. NOTE: location 0 means mrX location is unknown
-        ImmutableList<LogEntry> mrXTravelLog = this.currentState.getMrXTravelLog();
-        if (!mrXTravelLog.isEmpty()) {
-            //mrX location is not unknown
-//            playerLocations.set(0, this.currentState.getMrXTravelLog().)
+//       Get MrX location
+        List<Integer> playerLocations = Collections.nCopies(PLAYERSINPUTSIZE, -1); //playerLocationsList order will match order of playerTickets
+        //ie if RED player is first in player locations, he will also be first in playerTickets
+//        getting mrX location.
+//        NOTE: location -1 means mrX location has not been revealed yet and will not be set on board
+        List<LogEntry> mrXRevealedTravelLog = this.currentState.getMrXTravelLog().stream()
+                .filter(logEntry -> logEntry.location().isPresent()).toList();
+        if (!mrXRevealedTravelLog.isEmpty()) {
+            //mrX location has been revealed
+            //set mrX location to last known location
+            playerLocations.set(0, mrXRevealedTravelLog.get(mrXRevealedTravelLog.size()).location().orElseThrow());
         }
+        else playerLocations.set(0,-1); //set mrX location to -1 if it hasn't been revealed yet
+
+        //Get Detective Locations
+        List<Piece> detectives = this.currentState.getPlayers().stream().filter(Piece::isDetective).toList();
+        for (Piece det : detectives) {
+            int location = this.currentState.getDetectiveLocation((Piece.Detective) det).orElse(0);
+            playerLocations.set(this.getPlayerIndex(det), location);
+        }
+
 //        encode players
+        for (int i = 0; i < playerLocations.size(); i++) {
+            int location = playerLocations.get(i);
+            if (location != -1) {
+                List<Integer> oneHotEncodedPlayers = Collections.nCopies(PLAYERSINPUTSIZE, 0);
+                oneHotEncodedPlayers.set(i, 1);
+                board.set(location, oneHotEncodedPlayers);
+            }
+        }
         return board;
+    }
+
+    private int getPlayerIndex(Piece player) { //ORDER MRX(BLACK), RED, GREEN, BLUE, WHITE, YELLOW
+
+        if (player.webColour().equals(Piece.MrX.MRX.webColour())) return 0;
+        else if (player.webColour().equals(Piece.Detective.RED.webColour())) return 1;
+        else if (player.webColour().equals(Piece.Detective.GREEN.webColour())) return 2;
+        else if (player.webColour().equals(Piece.Detective.BLUE.webColour())) return 3;
+        else if (player.webColour().equals(Piece.Detective.WHITE.webColour())) return 4;
+        else if (player.webColour().equals(Piece.Detective.YELLOW.webColour())) return 5;
+
+        else throw new IllegalArgumentException("piece did not match any player");
+
     }
 
 
     public List<List<Integer>> getEncodedPlayerTickets() {
-//        TODO
-        return null;
+        //instantiate all ints to 0
+        List<List<Integer>> playerTicketsOneHotEncoded = Collections.nCopies(PLAYERSINPUTSIZE, Collections.nCopies(TICKETSINPUTSIZE, 0));
+        List<Board.TicketBoard> playerTickets = Collections.nCopies(TICKETSINPUTSIZE, null);
+        //iterate through players
+        for (Piece player : this.currentState.getPlayers()) {
+            Optional<Board.TicketBoard> tickets = this.currentState.getPlayerTickets(player);
+            //add tickets
+            playerTickets.set(getPlayerIndex(player), tickets.orElseThrow());
+        }
+        //one hot encode
+        for (int i = 0; i < PLAYERSINPUTSIZE; i++) {
+            Board.TicketBoard tickets = playerTickets.get(i);
+            List<Integer> ticketIntList = new ArrayList<>();
+            if (tickets != null) {
+                for (ScotlandYard.Ticket ticket : ScotlandYard.Ticket.values()) {
+                    ticketIntList.set(ticket.ordinal(), tickets.getCount(ticket)); //DEBUG is ordinal() correct?
+                }
+            }
+            else {
+                ticketIntList = Collections.nCopies(TICKETSINPUTSIZE, 0);
+            }
+            playerTicketsOneHotEncoded.set(i, ticketIntList);
+        }
+        return playerTicketsOneHotEncoded;
     }
 
     public Integer getNumOfRoundsSinceReveal() {
-//        TODO
-        return null;
+        List<LogEntry> mrXTravelLog = this.currentState.getMrXTravelLog();
+        //check if there has not been a reveal move yet
+        if (mrXTravelLog.stream().noneMatch(logEntry -> logEntry.location().isPresent())) {
+            return mrXTravelLog.size();
+        }
+        else {
+            boolean foundRevealMove = false;
+            int numOfRounds = -1;
+            //iterate thorugh travel log backwards
+            //if not found reveal increment numofrounds
+            //if found return num of rounds
+            for (int i = mrXTravelLog.size()-1; i > -1 && !foundRevealMove; i--) {
+                if (mrXTravelLog.get(i).location().isPresent()) foundRevealMove = true;
+                numOfRounds++;
+            }
+            return numOfRounds;
+        }
     }
 }
 
