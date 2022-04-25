@@ -3,6 +3,7 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -21,19 +22,30 @@ public class TrainingEntry {
         this.gameOutcome = gameOutcome;
     }
 
-    public TrainingEntry(Byte[][] byteArray) {
-        if (byteArray.length != 3) throw new IllegalArgumentException(String.format("Expected 3 bytes, got %d", byteArray.length));
-//        this.gameState = bytea
+    public TrainingEntry(DataInputStream din) throws IOException {
+//        gamestate
+        this.gameState = new NnetInput(din);
+//        policy values
+        int policySize = din.readInt();
+        List<Float> newPolicy = new ArrayList<>();
+        for (int i = 0; i < policySize; i++) {
+            newPolicy.add(din.readFloat());
+        }
+        this.policyValues = newPolicy;
+//        gameoutcome
+        this.gameOutcome = din.readInt();
     }
     public byte[] toBytes() throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
+        //gamestate
         output.write(gameState.toBytes());
 
+//        policy
         output.write(policyValues.size());
         for (int i = 0; i < policyValues.size(); i++) {
             output.write(policyValues.get(i).byteValue());
         }
-
+//gameoutcome
         output.write(gameOutcome);
         return output.toByteArray();
     }

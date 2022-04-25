@@ -3,10 +3,7 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
-import java.io.DataOutputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,6 +21,7 @@ public class Coach {
     private static final boolean SKIPFIRSTSELFPLAY = false;
     private static final String SAVEFOLDER = "";
     private static final int NUMOFGAMES = 100;
+    private static final String LOADFILE = "checkpoint_x.pth.tar";
 
     Game game;
     NeuralNet nnet;
@@ -124,8 +122,7 @@ public class Coach {
     public void saveTrainExamples(int iteration) throws IOException {
         //TODO implement
         // Creating binary file
-        FileOutputStream fout= null;
-        fout = new FileOutputStream("inventory.dat");
+        FileOutputStream fout = new FileOutputStream(getCheckpointFile(iteration) + ".examples");
         DataOutputStream dout=new DataOutputStream(fout);
         //write num of elements for list reconstruction
         dout.write(trainingExamplesHistory.size());
@@ -140,8 +137,22 @@ public class Coach {
         fout.close();
     }
 
-    public void loadTrainExamples() {
-
+    public void loadTrainExamples() throws IOException {
+        FileInputStream fin = new FileInputStream(SAVEFOLDER + LOADFILE + ".examples");
+        DataInputStream din = new DataInputStream(fin);
+        Queue<List<TrainingEntry>> newTrainingExamplesHistory = new SynchronousQueue<>();
+        int trainingExamplesHistorySize = din.readInt();
+        for (int i = 0; i < trainingExamplesHistorySize; i++) {
+            int listSize = din.readInt();
+            List<TrainingEntry> trainingExamples = new ArrayList<>();
+            for (int j = 0; j < listSize; j++) {
+                trainingExamples.add(new TrainingEntry(din));
+            }
+            newTrainingExamplesHistory.add(trainingExamples);
+        }
+        this.trainingExamplesHistory = newTrainingExamplesHistory;
+        din.close();
+        fin.close();
     }
 
 }
