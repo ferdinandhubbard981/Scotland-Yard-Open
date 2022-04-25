@@ -24,19 +24,23 @@ public class Coach {
     private static final String LOADFILE = "checkpoint_x.pth.tar";
 
     Game game;
-    NeuralNet nnet;
-    NeuralNet pnet;
-    MCTS mcts;
-    Queue<List<TrainingEntry>> trainingExamplesHistory;
+    NeuralNet mrXNnet;
+    NeuralNet detNnet;
+    MCTS newmcts;
+    Queue<List<TrainingEntry>> mrXrainingExamplesHistory;
+    Queue<List<TrainingEntry>> dettrainingExamplesHistory;
+
     boolean skipFirstSelfPlay;
 
-    public Coach(Game game, NeuralNet nnet) {
+    public Coach(Game game) throws IOException {
         this.game = game;
-        this.nnet = nnet;
-        this.pnet = new NeuralNet(this.game); //TODO check
-        this.mcts = new MCTS(this.nnet);
-        this.trainingExamplesHistory = new SynchronousQueue<>();
+        this.mrXNnet = new NeuralNet(this.game, true);
+        this.detNnet = new NeuralNet(this.game, false); //TODO check
+        this.newmcts = new MCTS(this.mrXNnet, this.detNnet);
+        this.mrXrainingExamplesHistory = new SynchronousQueue<>();
+        this.dettrainingExamplesHistory = new SynchronousQueue<>();
         this.skipFirstSelfPlay = false;
+
     }
     //trainingExample: <gameState, ismrX, policy, gameOutcome>
     public List<TrainingEntry> executeEpisode() {
@@ -48,7 +52,7 @@ public class Coach {
         int gameOutcome = 0;
         while (gameOutcome == 0) {
             episodeStep++;
-            List<Float> pi = this.mcts.getActionProb(this.game, NUMOFSIMS);
+            List<Float> pi = this.newmcts.getActionProb(this.game, NUMOFSIMS);
             trainingExamples.add(new TrainingEntry(new NnetInput(this.game), pi, 0)); //gameOutcome here is temporary and is overridden
 //            getting randomMove from all possible Moves
             List<Float> validMoveVals = pi.stream().filter(val -> val != 0).toList();
@@ -64,35 +68,42 @@ public class Coach {
     }
 
     public void learn() {
+        //iterations
         for (int i = 0; i < NUMOFITER; i++) {
             System.out.printf("Iteration %d\n\n", i);
             if (!SKIPFIRSTSELFPLAY || i > 1) {
                 Queue<TrainingEntry> iterationTrainingExamples = new SynchronousQueue<>();
+                //generating training data
                 for (int j = 0; j < NUMEPS; j++) {
-                    this.mcts = new MCTS(this.nnet);
+                    this.newmcts = new MCTS(this.mrXNnet, this.detNnet);
                     iterationTrainingExamples.addAll(this.executeEpisode());
                 }
+                //formatting training data
                 this.trainingExamplesHistory.add(iterationTrainingExamples.stream().toList());
                 if (this.trainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
                     System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.trainingExamplesHistory.size());
                     this.trainingExamplesHistory.remove();
                 }
+                //saving training data
                 try {
                     this.saveTrainExamples(i-1);
                 } catch (IOException e) {
                     e.printStackTrace();
                     System.exit(1);
                 }
+                //loading training examples in iterations
                 List<TrainingEntry> trainingExamples = new ArrayList<>();
                 for (List<TrainingEntry> trainingExampleList : this.trainingExamplesHistory) {
                     trainingExamples.addAll(trainingExampleList);
                 }
+                //shuffling training examples to avoid overfitting
                 Collections.shuffle(trainingExamples);
-                this.nnet.save_checkpoint(SAVEFOLDER, "temp.pth.tar");
-                this.pnet.load_checkpoint(SAVEFOLDER, "temp.pth.tar");
-                MCTS pmcts = new MCTS(this.pnet);
-                this.nnet.train(trainingExamples);
-                MCTS nmcts = new MCTS(this.nnet);
+                this.mrXNnet.save_checkpoint(SAVEFOLDER, "temp.pth.tar");
+                this.detNnet.load_checkpoint(SAVEFOLDER, "temp.pth.tar");
+                MCTS previousMCTS = new MCTS(this.mrXNnet, this.detNnet);
+                this.mrXNnet.train(mrXTrainingExamples);
+                this.detNnet.train(detTrainingExamples);
+                MCTS newMCTS = new MCTS(this.mrXNnet, this.detNnet)
 
                 System.out.printf("pitting against previous version");
                 Arena arena = new Arena(this.game, nmcts, pmcts);

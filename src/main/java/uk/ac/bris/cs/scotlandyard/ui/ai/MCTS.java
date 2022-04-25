@@ -20,6 +20,10 @@ public class MCTS {
     Map<String, Boolean> pxs; //GameState -> ?parent current player is mrX?
 
     public MCTS(NeuralNet mrXNnet, NeuralNet detNnet) {
+        //to ensure I typed them the right way around
+        assert(mrXNnet.isMrX);
+        assert (!detNnet.isMrX);
+        //initializing variables
         this.mrXNnet = mrXNnet;
         this.detNnet = detNnet;
         this.qsa = new HashMap<>();

@@ -19,10 +19,15 @@ public class NeuralNet {
     private static final int EPOCHS = 10;
     private static final int BATCH_SIZE = 64;
     private static final int NUM_CHANNELS = 512;
-    public NeuralNet(Game game) throws IOException {
+    private static final String MRXGRAPH = "pathtofile";
+    private static final String DETGRAPH = "pathtofile";
+    public final boolean isMrX;
+    public NeuralNet(Game game, boolean isMrX) throws IOException {
+        this.isMrX = isMrX;
         Graph graph = new Graph();
         Session sess = new Session(graph);
-        byte[] graphDef = Files.readAllBytes(Paths.get("path"));
+        String path = (game.currentIsMrX) ? MRXGRAPH : DETGRAPH;
+        byte[] graphDef = Files.readAllBytes(Paths.get(path));
         graph.importGraphDef(GraphDef.parseFrom(graphDef));
 
     }

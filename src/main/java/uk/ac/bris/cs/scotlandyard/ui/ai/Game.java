@@ -1,14 +1,25 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.javatuples.Quintet;
+import org.javatuples.Triplet;
 import uk.ac.bris.cs.scotlandyard.model.*;
+import uk.ac.bris.cs.scotlandyard.model.ScotlandYard.Ticket;
+import uk.ac.bris.cs.scotlandyard.model.ScotlandYard.Transport;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static uk.ac.bris.cs.scotlandyard.model.ScotlandYard.*;
+
 public class Game {
+    private static final String MOVEMAPFILEPATH = "moveArcs.txt";
     //found using python script to read graph.txt
     MyGameState currentState;
     boolean currentIsMrX;
@@ -21,35 +32,101 @@ public class Game {
     public static final int TICKETSINPUTSIZE = 5;
 
     //TODO instantiate moveMap in onStart() function using graph.txt
-    //moveMap: Quintet<source, dest1, dest2, transport1, transport2> -> Integer
-    //if move is singleMove then dest2 = -1 and transport2 = null
-    public final Map<Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport>, Integer> moveMap; //maps every one of the $POSSIBLEMOVES to an integer
-    public Game(Map<Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport>, Integer> moveMap) {
-        this.moveMap = moveMap;
+    //moveMap: Quintet<source, dest1, dest2, Ticket1, Ticket2> -> Integer
+    //if move is singleMove then dest2 = null and Ticket2 = null
+    public final Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> moveMap; //maps every one of the $POSSIBLEMOVES to an integer
+    public Game() throws IOException {
+        this.moveMap = this.makeMoveMap();
         this.currentIsMrX = true;
+    }
+
+    private Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> makeMoveMap() throws IOException {
+        Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> output = new HashMap<>();
+        int numOfPossibleMoves = 0;
+        //open file
+        BufferedReader br = new BufferedReader(new FileReader(MOVEMAPFILEPATH));
+        //make moveArcs map
+        //Map<sourceMove, List<Triplet<source, destination, Ticket>>>
+        Map<Integer, List<Triplet<Integer, Integer, Ticket>>> singleMoveArcs = new HashMap<>();
+        String line;
+        while ((line = br.readLine()) != null) {
+            List<String> strings = List.of(line.split(" "));
+            int source = Integer.getInteger(strings.get(0));
+            List<Triplet<Integer, Integer, Ticket>> moveArcs = singleMoveArcs.getOrDefault(source, new ArrayList<>());
+            moveArcs.addAll(stringToMoveArc(strings));
+            singleMoveArcs.put(source, moveArcs);
+
+        }
+        //add single moves
+        //iterate through every node on the graph
+        for (int i = 1; i < NNETINPUTBOARDSIZE+1; i++) {
+            //iterate through every move arc from source i
+            for (Triplet<Integer, Integer, Ticket> moveArc : singleMoveArcs.get(i)) {
+                int source = moveArc.getValue0(), dest1 = moveArc.getValue1();
+                Ticket Ticket1 = moveArc.getValue2();
+                //add move
+                output.put(new Quintet<>(source, dest1, null, Ticket1, null), numOfPossibleMoves);
+                numOfPossibleMoves++;
+            }
+        }
+        //add double moves
+        //iterate through every node on the graph
+        for (int i = 0; i < NNETINPUTBOARDSIZE; i++) {
+            //iterate through every move arc from source i
+            for (Triplet<Integer, Integer, Ticket> moveArc : singleMoveArcs.get(i)) {
+                int source = moveArc.getValue0(), dest1 = moveArc.getValue1();
+                Ticket Ticket1 = moveArc.getValue2();
+                //iterate thorugh every move arc from every destination
+                for (Triplet<Integer, Integer, Ticket> moveArc2 : singleMoveArcs.get(dest1)) {
+                    int dest2 = moveArc2.getValue1();
+                    Ticket Ticket2 = moveArc2.getValue2();
+                    //add move
+                    output.put(new Quintet<>(source, dest1, dest2, Ticket1, Ticket2), numOfPossibleMoves);
+                    numOfPossibleMoves++;
+                }
+            }
+        }
+        return output;
+    }
+
+    private List<Triplet<Integer, Integer, Ticket>> stringToMoveArc(List<String> inputStrings) {
+        assert(inputStrings.size() == 3);
+        List<Triplet<Integer, Integer, Ticket>> output = new ArrayList<>();
+        //val0: source, val1: dest1, val2: Ticket
+        List<Ticket> validTickets = getTickets(inputStrings.get(2));
+        for (Ticket ticket : validTickets) {
+            output.add(new Triplet<>(Integer.getInteger(inputStrings.get(0)), Integer.getInteger(inputStrings.get(1)), ticket));
+        }
+        return output;
+    }
+
+    private List<Ticket> getTickets(String s) {
+        if (s.equals("Taxi")) return List.of(Ticket.TAXI, Ticket.SECRET);
+        if (s.equals("Bus")) return List.of(Ticket.BUS, Ticket.SECRET);
+        if (s.equals("Underground")) return List.of(Ticket.UNDERGROUND, Ticket.SECRET);
+        if (s.equals("Ferry")) return List.of(Ticket.SECRET);
+        throw new IllegalArgumentException("Tickets not found");
+
     }
 
     public void setValidMoves() {
         this.validMoves = this.currentState.getAvailableMoves();
     }
 
-    //TODO randomize game setup
-    //randomize numOfDetectives [1, 5]
-    //randomize numOfTickets [1, 100]
-    //randomize numOfRounds
-    //randomize numOfReveal rounds and when they occur
     public void getInitBoard() {
         GameSetup setup = null;
         try {
-            setup = new GameSetup(ScotlandYard.standardGraph(), ScotlandYard.STANDARD24MOVES);
+            setup = new GameSetup(standardGraph(), STANDARD24MOVES);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Player mrX = new Player(Piece.MrX.MRX, ScotlandYard.defaultMrXTickets() , ScotlandYard.generateMrXLocation(5));
+        Player mrX = new Player(Piece.MrX.MRX, getRandomTickets(true) , generateMrXLocation(5));
+        int numOfDetectives = ThreadLocalRandom.current().nextInt(1, DETECTIVES.size()+1);
         List<Player> detectives = new ArrayList<>();
-        List<Integer> detectiveLocations = ScotlandYard.generateDetectiveLocations(5, 5);
-        for (int i = 0; i < ScotlandYard.DETECTIVES.size(); i++) {
-            Player newDet = new Player(ScotlandYard.DETECTIVES.asList().get(i), ScotlandYard.defaultDetectiveTickets(), detectiveLocations.get(i));
+        List<Integer> detectiveLocations = generateDetectiveLocations(5, numOfDetectives);
+        for (int i = 0; i < numOfDetectives; i++) {
+            //DEBUG detective color randomization??
+            Player newDet = new Player(DETECTIVES.asList().get(i), getRandomTickets(false), detectiveLocations.get(i));
             detectives.add(newDet);
         }
         this.currentState = new MyGameState(setup, ImmutableSet.of(mrX.piece()), ImmutableList.of(), mrX, ImmutableList.copyOf(detectives));
@@ -57,52 +134,58 @@ public class Game {
         this.currentIsMrX = updateCurrentPlayer();
     }
 
-//    private Object getRandomTickets(boolean isMrX) {
-//        Map<ScotlandYard.Ticket, Integer> tickets = new HashMap<>();
-//        for (ScotlandYard.Ticket ticket: Arrays.stream(ScotlandYard.Ticket.values())
-//                .filter(ticket -> ticket != ScotlandYard.Ticket.DOUBLE && ticket != ScotlandYard.Ticket.SECRET)
-//                .collect(Collectors.toSet())) {
-//            tickets.put(ticket, ThreadLocalRandom.current().nextInt(0, 101))
-//        } ScotlandYard.defaultMrXTickets()
-//        if (isMrX) {
-//            tickets.put(ScotlandYard.Ticket.SECRET, )
-//        }
-//        else {
-//
-//        }
-//
-//        return tickets;
-//    }
+    private ImmutableMap<Ticket, Integer> getRandomTickets(boolean isMrX) {
+        Map<Ticket, Integer> tickets = new HashMap<>();
+        for (Ticket ticket: Ticket.values()) {
+            //we want average tickets to be < 10 so average of 50 / average ¬7.5 give you average of
+                    tickets.put(ticket, getRandomNumOfTickets(ticket, isMrX));
+        }
+        return ImmutableMap.copyOf(tickets);
+    }
 
-//    private GameSetup getRandomSetup() {
-//
-//        int numOfMoves = ThreadLocalRandom.current().nextInt(1, 100);
-//
-//        Set<Integer> revealMoves = new HashSet<>();
-//        for (int i = 1; i < numOfMoves+1; i++) {
-//            //1 in 5 chance of move being revealmove
-//            if (ThreadLocalRandom.current().nextInt(0, 5) == 0) revealMoves.add(i);
-//        }
-//        ImmutableList<Boolean> moveSetup = IntStream.rangeClosed(1, numOfMoves)
-//                .mapToObj(revealMoves::contains)
-//                .collect(ImmutableList.toImmutableList());;
-//        try {
-//            return new GameSetup(ScotlandYard.standardGraph(), moveSetup);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        return null;
-//    }
+    private Integer getRandomNumOfTickets(Ticket ticket, boolean isMrX) {
+        if (!isMrX && (ticket == Ticket.DOUBLE || ticket == Ticket.SECRET)) return 0;
+        //returns weighted randomness
+        final int[] desiredTicketAverages;  //TICKETS ORDER: TAXI, BUS, UNDERGROUND, DOUBLE, SECRET
+        if (isMrX) desiredTicketAverages = new int[]{4, 3, 3, 2, 5};
+        else desiredTicketAverages = new int[]{11, 8, 4, 0, 0};
+
+        if (ticket == Ticket.TAXI) return ThreadLocalRandom.current().nextInt(0, 101) / ThreadLocalRandom.current().nextInt(1, 100 / desiredTicketAverages[0]);
+        if (ticket == Ticket.BUS) return ThreadLocalRandom.current().nextInt(0, 101) / ThreadLocalRandom.current().nextInt(1, 100 / desiredTicketAverages[1]);
+        if (ticket == Ticket.UNDERGROUND) return ThreadLocalRandom.current().nextInt(0, 101) / ThreadLocalRandom.current().nextInt(1, 100 / desiredTicketAverages[2]);
+        if (ticket == Ticket.DOUBLE) return ThreadLocalRandom.current().nextInt(0, 101) / ThreadLocalRandom.current().nextInt(1, 100 / desiredTicketAverages[3]);
+        if (ticket == Ticket.SECRET) return ThreadLocalRandom.current().nextInt(0, 101) / ThreadLocalRandom.current().nextInt(1, 100 / desiredTicketAverages[4]);
+        throw new IllegalArgumentException("ticket not found");
+    }
+
+    private GameSetup getRandomSetup() throws IOException {
+
+        int numOfRounds = ThreadLocalRandom.current().nextInt(1, 100);
+
+        Set<Integer> revealMoves = new HashSet<>();
+        for (int i = 1; i < numOfRounds+1; i++) {
+            //1 in 5 chance of move being revealmove
+            if (ThreadLocalRandom.current().nextInt(0, 5) == 0) revealMoves.add(i);
+        }
+        ImmutableList<Boolean> moveSetup = IntStream.rangeClosed(1, numOfRounds)
+                .mapToObj(revealMoves::contains)
+                .collect(ImmutableList.toImmutableList());;
+
+        return new GameSetup(standardGraph(), moveSetup);
+    }
 
     public void getNextState(int moveIndex) {
-        Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
-        if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
-        else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
-        this.currentState = this.currentState.advance(filteredMoves.findAny().orElseThrow()); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        this.currentState = this.currentState.advance(getMoveFromIndex(moveIndex)); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
         this.setValidMoves();
         this.currentIsMrX = updateCurrentPlayer();
     }
 
+    public Move getMoveFromIndex(int moveIndex) {
+        Stream<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex);
+        if (filteredMoves.toList().size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
+        else if (filteredMoves.toList().size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
+        return filteredMoves.findAny().orElseThrow();
+    }
     public int getMoveIndex(Move move) {
         return moveMap.get(getStrippedMove(move));
     }
@@ -118,26 +201,14 @@ public class Game {
     public List<Integer> getValidMoveTable() {
         return getMoveTable(this.validMoves);
     }
-
-    ScotlandYard.Transport ticketToTransport(ScotlandYard.Ticket ticket) {
-
-        return switch (ticket) {
-            case DOUBLE -> throw new IllegalArgumentException();
-            case SECRET -> ScotlandYard.Transport.FERRY; //because we are marking Ferry == Secret therefore also marking all secret
-            //and non-ferry moves as the same thing ie: ferry move = secret move
-            case TAXI -> ScotlandYard.Transport.TAXI;
-            case BUS -> ScotlandYard.Transport.BUS;
-            default -> ScotlandYard.Transport.UNDERGROUND;
-        };
-    }
-    private Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport> getStrippedMove(Move move) {
+    private Quintet<Integer, Integer, Integer, Ticket, Ticket> getStrippedMove(Move move) {
         return move.accept(new Move.Visitor<>() {
-            public Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport> visit(Move.SingleMove singleMove) {
-                return new Quintet<>(singleMove.source(), singleMove.destination, -1, ticketToTransport(singleMove.ticket), null);
+            public Quintet<Integer, Integer, Integer, Ticket, Ticket> visit(Move.SingleMove singleMove) {
+                return new Quintet<>(singleMove.source(), singleMove.destination, null, singleMove.ticket, null);
             }
 
-            public Quintet<Integer, Integer, Integer, ScotlandYard.Transport, ScotlandYard.Transport> visit(Move.DoubleMove doubleMove) {
-                return new Quintet<>(doubleMove.source(), doubleMove.destination1, doubleMove.destination2, ticketToTransport(doubleMove.ticket1), ticketToTransport(doubleMove.ticket2));
+            public Quintet<Integer, Integer, Integer, Ticket, Ticket> visit(Move.DoubleMove doubleMove) {
+                return new Quintet<>(doubleMove.source(), doubleMove.destination1, doubleMove.destination2, doubleMove.ticket1, doubleMove.ticket2);
             }
         });
 
@@ -224,7 +295,7 @@ public class Game {
             Board.TicketBoard tickets = playerTickets.get(i);
             List<Integer> ticketIntList = new ArrayList<>();
             if (tickets != null) {
-                for (ScotlandYard.Ticket ticket : ScotlandYard.Ticket.values()) {
+                for (Ticket ticket : Ticket.values()) {
                     ticketIntList.set(ticket.ordinal(), tickets.getCount(ticket)); //DEBUG is ordinal() correct?
                 }
             }
