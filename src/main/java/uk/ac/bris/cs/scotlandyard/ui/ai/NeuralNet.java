@@ -1,19 +1,18 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
-import ch.qos.logback.core.joran.spi.ConsoleTarget;
-import com.fasterxml.jackson.databind.type.PlaceholderForType;
+
 import org.javatuples.Pair;
-import org.tensorflow.Session;
-import org.tensorflow.proto.framework.GraphDef;
-import uk.ac.bris.cs.scotlandyard.model.Board;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
-import org.javatuples.Triplet;
-import org.tensorflow.Graph;
+
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
 public class NeuralNet {
+    private static final boolean LOADFROMKERAS = true;
+    private static final int SEED = 123;
     private static final float LR = 0.001f;
     private static final float DROPOUT = 0.3f;
     private static final int EPOCHS = 10;
@@ -22,29 +21,41 @@ public class NeuralNet {
     private static final String MRXGRAPH = "pathtofile";
     private static final String DETGRAPH = "pathtofile";
     public final boolean isMrX;
-    public NeuralNet(Game game, boolean isMrX) throws IOException {
+//    private MultiLayerNetwork nnet;
+    public NeuralNet(Game game, boolean isMrX) throws IOException{
         this.isMrX = isMrX;
-        Graph graph = new Graph();
-        Session sess = new Session(graph);
         String path = (game.currentIsMrX) ? MRXGRAPH : DETGRAPH;
-        byte[] graphDef = Files.readAllBytes(Paths.get(path));
-        graph.importGraphDef(GraphDef.parseFrom(graphDef));
-
+        if (LOADFROMKERAS) loadKerasNet(path);
+        else load_checkpoint(path);
     }
 
+    public void loadKerasNet(String path) throws IOException{
+//        String simpleMlp = new ClassPathResource(path).getFile().getPath();
+//        this.nnet = new MultiLayerNetwork(KerasModelImport.importKerasSequentialConfiguration(simpleMlp));
+//        this.nnet.init(); DEBUG
+    }
     public void train(List<TrainingEntry> trainingExamples) {
-
+        for (TrainingEntry example : trainingExamples) {
+//            INDArray input = example.getNnetInput();
+//            INDArray expectedOutput = example.getExepectedOutput();
+//            this.nnet.fit(input, expectedOutput);
+        }
     }
 
     public Pair<List<Float>, Float> predict(NnetInput gameState) {
-        return null;
+//        INDArray input = gameState.getIndArray();
+//        this.nnet.output(input);
+        //TODO
+        //Convert IndArray to Pair<List<Float>, Float>
+        Pair<List<Float>, Float> output = new Pair<>(Collections.nCopies(POSSIBLEMOVES, 0f), 0.5f);
+        return output;
     }
 
-    public void save_checkpoint(String folder, String fileName) {
-
+    public void save_checkpoint(String path) throws IOException {
+//        ModelSerializer.writeModel(this.nnet, path, true);
     }
 
-    public void load_checkpoint(String folder, String fileName) {
-
+    public void load_checkpoint(String path) throws IOException {
+//        this.nnet = ModelSerializer.restoreMultiLayerNetwork(path);
     }
 }

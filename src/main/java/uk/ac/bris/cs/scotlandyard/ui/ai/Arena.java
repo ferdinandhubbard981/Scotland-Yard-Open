@@ -2,6 +2,7 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import io.atlassian.fugue.Pair;
 import uk.ac.bris.cs.scotlandyard.model.Ai;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +32,12 @@ public class Arena {
         //performs one game
         //returns 1 if player1 wins, -1 if player2 wins
 
-        this.game.getInitBoard();
+        try {
+            this.game.getInitBoard();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
 //        List<Ai> players = new ArrayList<>();
 //        players.add(this.player1);
 //        players.add(this.player2);

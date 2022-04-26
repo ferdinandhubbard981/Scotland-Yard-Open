@@ -74,4 +74,10 @@ public class NnetInput {
         output.write(this.numOfRoundsSinceReveal);
         return output.toByteArray();
     }
+
+//    public INDArray getIndArray() {
+//        //TODO
+//        //convert to IndArray
+//        return null;
+//    }
 }

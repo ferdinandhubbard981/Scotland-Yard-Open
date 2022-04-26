@@ -65,4 +65,14 @@ public class TrainingEntry {
     public void setGameOutcome(Integer gameOutcome) {
         this.gameOutcome = gameOutcome;
     }
+
+//    public INDArray getNnetInput() {
+//        return this.gameState.getIndArray();
+//    }
+//
+//    public INDArray getExepectedOutput() {
+//        //TODO
+//        //convert policyvalues and gameoutcome into IndArray
+//        return null;
+//    }
 }

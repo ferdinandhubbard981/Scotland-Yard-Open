@@ -19,8 +19,6 @@
         <werror>true</werror>
         <javafx.version>17.0.2</javafx.version>
     </properties>
-
-
     <repositories>
         <repository>
             <id>project.local</id>
@@ -39,22 +37,9 @@
             <version>1.2</version>
         </dependency>
 
-<!--        <dependency>-->
-<!--            <groupId>org.tensorflow</groupId>-->
-<!--            <artifactId>tensorflow</artifactId>-->
-<!--            <version>1.13.1</version>-->
-<!--        </dependency>-->
-
-<!--        <dependency>-->
-<!--            <groupId>org.tensorflow</groupId>-->
-<!--            <artifactId>libtensorflow_jni_gpu</artifactId>-->
-<!--            <version>1.7.0</version>-->
-<!--        </dependency>-->
-
-
         <dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-platform-mkl-gpu</artifactId>
+            <artifactId>tensorflow-framework</artifactId>
             <version>0.3.3</version>
         </dependency>
 
