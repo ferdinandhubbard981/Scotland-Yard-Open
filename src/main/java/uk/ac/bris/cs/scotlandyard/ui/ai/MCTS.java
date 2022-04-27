@@ -131,7 +131,9 @@ public class MCTS {
             }
         }
         Boolean currentIsMrX = this.game.currentIsMrX; //saving who current player is because this.game is updated to next state
+
         this.game.getNextState(bestMoveIndex); //AT THIS POINT THIS.PERMGAME IS UPDATED to the next state
+
 
         //storing current player of next state parent in hashmap
         this.pxs.put(this.game.stringRepresentation(), this.game.currentIsMrX);

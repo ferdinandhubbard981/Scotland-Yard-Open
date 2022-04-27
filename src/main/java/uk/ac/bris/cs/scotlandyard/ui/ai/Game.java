@@ -34,9 +34,15 @@ public class Game {
     //moveMap: Quintet<source, dest1, dest2, Ticket1, Ticket2> -> Integer
     //if move is singleMove then dest2 = null and Ticket2 = null
     public final Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> moveMap; //maps every one of the $POSSIBLEMOVES to an integer
+    public Game(Game copyGame) {
+        this.moveMap = copyGame.moveMap;
+        this.currentState = copyGame.currentState;
+        this.setValidMoves();
+        this.updateCurrentPlayer();
+    }
     public Game() throws IOException {
-        System.err.printf("working");
         this.moveMap = this.makeMoveMap();
+        assert(this.moveMap.size() == POSSIBLEMOVES);
     }
 
     public void setGameState(MyGameState gameState) {this.currentState = gameState;}
@@ -214,7 +220,9 @@ public class Game {
     public List<Integer> getMoveTable(Set<Move> moves) {
         //populate moveMask with 0
         List<Integer> moveMask = new ArrayList<>(Collections.nCopies(POSSIBLEMOVES, 0));
+        //map moves to their indexes
         List<Integer> moveIndexes = moves.stream().map(this::getMoveIndex).toList();
+        //for each index: set the int at that index to 1
         for (int move : moveIndexes) moveMask.set(move, 1);
         return moveMask;
     }
@@ -249,7 +257,7 @@ public class Game {
     }
 
     public void updateCurrentPlayer() {
-        this.currentIsMrX = this.validMoves.stream().findAny().orElseThrow().commencedBy().isMrX();
+        this.currentIsMrX = this.validMoves.stream().anyMatch(move -> move.commencedBy().isMrX());
     }
 
     public List<List<Integer>> getEncodedBoard() {

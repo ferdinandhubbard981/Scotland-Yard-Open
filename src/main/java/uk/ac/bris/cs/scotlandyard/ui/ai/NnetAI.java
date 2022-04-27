@@ -50,10 +50,12 @@ public class NnetAI implements Ai {
             System.exit(1);
         }
         MCTS mcts = new MCTS(mrXNnet, detNnet);
-        List<Float> policy = mcts.getActionProb(this.gameAPI, 20);
+        Game tempGame = new Game(this.gameAPI);
+        List<Float> policy = mcts.getActionProb(tempGame, 5);
         Float highestPolicyVal = policy.stream()
                 .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
         int moveIndex = policy.indexOf(highestPolicyVal);
+        this.gameAPI.setValidMoves();
         List<Integer> validMoveTable = this.gameAPI.getValidMoveTable();
         if (validMoveTable.get(moveIndex) == 0) {
             //invalid move was selected
@@ -63,7 +65,8 @@ public class NnetAI implements Ai {
             //setting moveIndex to a random valid move;
             moveIndex = validMoveTable.indexOf(1);
         }
-        return this.gameAPI.getMoveFromIndex(moveIndex);
+        Move output = this.gameAPI.getMoveFromIndex(moveIndex);
+        return output;
     }
 
     public MyGameState build(Board board) {
@@ -80,14 +83,21 @@ public class NnetAI implements Ai {
         ImmutableMap<Ticket, Integer> tickets = ticketBoardToMap(board.getPlayerTickets(piece).orElseThrow());
         int location;
         if (piece.isMrX()) {
-            List<LogEntry> mrXRevealedTravelLog = board.getMrXTravelLog().stream()
-                    .filter(logEntry -> logEntry.location().isPresent()).toList();
-            if (!mrXRevealedTravelLog.isEmpty()) {
-                //mrX location has been revealed
-                //set mrX location to last known location
-                location = mrXRevealedTravelLog.get(mrXRevealedTravelLog.size() - 1).location().orElseThrow();
+            //if not mrx turn mrx playing = 0. otherwise mrx playing = mrx position
+            int mrXPlaying = board.getAvailableMoves().stream().filter(move -> move.commencedBy().isMrX()).map(move -> move.source()).findFirst().orElse(0);
+            if (mrXPlaying != 0) {
+                location = mrXPlaying;
             }
-            else location = MRXUNKOWNPOSITION; //if mrx position is uknown we just place him in the center of the board //todo
+            else {
+                List<LogEntry> mrXRevealedTravelLog = board.getMrXTravelLog().stream()
+                        .filter(logEntry -> logEntry.location().isPresent()).toList();
+                if (!mrXRevealedTravelLog.isEmpty()) {
+                    //mrX location has been revealed
+                    //set mrX location to last known location
+                    location = mrXRevealedTravelLog.get(mrXRevealedTravelLog.size() - 1).location().orElseThrow();
+                }
+                else location = MRXUNKOWNPOSITION; //if mrx position is uknown we just place him in the center of the board //todo
+            }
         }
         else location = board.getDetectiveLocation((Piece.Detective) piece).orElseThrow();
         return new Player(piece, tickets, location);

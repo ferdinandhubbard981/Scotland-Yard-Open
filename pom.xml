@@ -18,6 +18,7 @@
         <skipAfter>0</skipAfter>
         <werror>true</werror>
         <javafx.version>17.0.2</javafx.version>
+        <tfVersion>1.12.0</tfVersion>
     </properties>
     <repositories>
         <repository>
@@ -28,20 +29,35 @@
     </repositories>
 
     <dependencies>
-
-        <!--Located in local repo (project.local) -->
-
         <dependency>
             <groupId>org.javatuples</groupId>
             <artifactId>javatuples</artifactId>
             <version>1.2</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.tensorflow/tensorflow-framework -->
+        <!-- https://mvnrepository.com/artifact/org.tensorflow/tensorflow-framework -->
+
         <dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-framework</artifactId>
+            <artifactId>tensorflow-core-api</artifactId>
             <version>0.3.3</version>
         </dependency>
+
+
+<!--        <dependency>-->
+<!--            <groupId>org.tensorflow</groupId>-->
+<!--            <artifactId>proto</artifactId>-->
+<!--            <version>${tfVersion}</version>-->
+<!--        </dependency>-->
+
+        <dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>libtensorflow_jni_gpu</artifactId>
+            <version>${tfVersion}</version>
+        </dependency>
+        <!--Located in local repo (project.local) -->
+
 
         <dependency>
             <groupId>uk.ac.bris.cs</groupId>
