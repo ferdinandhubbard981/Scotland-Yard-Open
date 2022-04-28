@@ -1,11 +1,14 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
+import org.tensorflow.Tensor;
+import org.tensorflow.types.TFloat16;
+import org.tensorflow.types.TInt32;
+
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.PLAYERSINPUTSIZE;
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.TICKETSINPUTSIZE;
 
@@ -74,4 +77,15 @@ public class NnetInput {
         output.write(this.numOfRoundsSinceReveal);
         return output.toByteArray();
     }
+
+    public TInt32 getTensor() {
+        //TODO
+        return null;
+    }
+
+//    public INDArray getIndArray() {
+//        //TODO
+//        //convert to IndArray
+//        return null;
+//    }
 }

@@ -10,7 +10,7 @@ public class MCTS {
     private static final float EXPLORATIONCONSTANT = (float) Math.sqrt(2);
     NeuralNet mrXNnet;
     NeuralNet detNnet;
-    Game permGame;
+    Game game;
     Map<Pair<String, Integer>, Float> qsa; //Pair<GameState, Move> -> QValue
     Map<Pair<String, Integer>, Integer> nsa; //Pair<GameState, Move> -> numOfVisits
     Map<String, Integer> ns; //GameState -> numOfVisits
@@ -35,14 +35,22 @@ public class MCTS {
         this.pxs = new HashMap<>();
     }
 
-    public List<Float> getActionProb(Game game, int numOfSims) {
-        this.permGame = game;
+    public List<Float> getActionProb(Game game, int numOfSims) { //TODO ADD a time parameter that only works if numOfSims == 0
+        this.game = game;
+        final Game permGame = this.game; //this game never changes so we can always refer back to the root node
         //performs $numOfSims iterations of MCTS from $gameState
         //returns policy vector
 
+        final String s = this.game.stringRepresentation();
+        //initializing parrent isCurrentMrX of root node. This has not effect it's just to fix an error. we don't care about the output of this.search() for root node
+        this.pxs.put(s, true);
         //perform MCTS searches
-        for (int i = 0; i < numOfSims; i++) this.search();
-        final String s = this.permGame.stringRepresentation();
+        for (int i = 0; i < numOfSims; i++) {
+            //perform single MCTS simulation
+            this.search();
+            //reset game
+            this.game = permGame;
+        }
 
         //get moveMap of MoveVisits
         List<Integer> counts = new ArrayList<>();
@@ -59,27 +67,27 @@ public class MCTS {
         return probs;
     }
 
-    public Integer search() {
+    public Float search() {
         //string representation of gamestate for hashmaps
-        final String s = this.permGame.stringRepresentation();
+        final String s = this.game.stringRepresentation();
 
         //check game ended
-        if (es.containsKey(s)) es.put(s, this.permGame.getGameEnded());
+        if (!es.containsKey(s)) es.put(s, this.game.getGameEnded());
         if (es.get(s) != 0) {
-            if (this.pxs.get(s) != this.permGame.currentIsMrX) return -1 * es.get(s);
-            else return es.get(s);
+            if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * es.get(s).floatValue();
+            else return es.get(s).floatValue();
         }
 
         //check if leaf node
         if (!this.ps.containsKey(s)) {
             //this means s is a leaf node
             Pair<List<Float>, Float> predPair;
-            if (this.permGame.currentIsMrX) predPair = this.mrXNnet.predict(new NnetInput(this.permGame));
-            else predPair = this.detNnet.predict(new NnetInput(this.permGame));
+            if (this.game.currentIsMrX) predPair = this.mrXNnet.predict(new NnetInput(this.game));
+            else predPair = this.detNnet.predict(new NnetInput(this.game));
             this.ps.put(s, predPair.getValue0());
             float v = predPair.getValue1();
-            List<Integer> validMoveTable = this.permGame.getValidMoveTable();
-            List<Float> maskedPolicy = this.ps.get(s);
+            List<Integer> validMoveTable = this.game.getValidMoveTable();
+            List<Float> maskedPolicy = new ArrayList<>(this.ps.get(s));
             //policy is masked by setting invalid moves to a policy value of 0f (nnet is not 100% accurate)
             for (int i = 0; i < maskedPolicy.size(); i++) {
                 if (validMoveTable.get(i) == 0) maskedPolicy.set(i, 0f);
@@ -97,6 +105,8 @@ public class MCTS {
             }
             this.vs.put(s, validMoveTable);
             this.ns.put(s, 0);
+            if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * v;
+            else return v;
         }
 
         List<Integer> validMoveIndexes = this.vs.get(s);
@@ -120,14 +130,16 @@ public class MCTS {
                 }
             }
         }
-        Boolean currentIsMrX = this.permGame.currentIsMrX; //saving who current player is because this.game is updated to next state
-        this.permGame.getNextState(bestMoveIndex); //AT THIS POINT THIS.PERMGAME IS UPDATED to the next state
+        Boolean currentIsMrX = this.game.currentIsMrX; //saving who current player is because this.game is updated to next state
+
+        this.game.getNextState(bestMoveIndex); //AT THIS POINT THIS.PERMGAME IS UPDATED to the next state
+
 
         //storing current player of next state parent in hashmap
-        this.pxs.put(this.permGame.stringRepresentation(), this.permGame.currentIsMrX);
+        this.pxs.put(this.game.stringRepresentation(), this.game.currentIsMrX);
 
         //TODO recursion optimization. Delete game instance for this when we go to next
-        Integer v = this.search();
+        Float v = this.search();
         Pair<String, Integer> stateActionPair = new Pair<>(s, bestMoveIndex);
         if (this.qsa.containsKey(stateActionPair)) {
             //is not leaf node

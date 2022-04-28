@@ -17,7 +17,6 @@ public final class MyGameState implements Board.GameState {
     private ImmutableSet<Move> moves;
     private ImmutableSet<Piece> winner;
 
-    //constructor that gets called by the build function in MyGameStateFactory
 
     public MyGameState(
             final GameSetup setup,

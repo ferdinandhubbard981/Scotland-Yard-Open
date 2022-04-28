@@ -1,5 +1,9 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
+import org.tensorflow.Tensor;
+import org.tensorflow.ndarray.NdArray;
+import org.tensorflow.types.TFloat16;
+import org.tensorflow.types.TInt32;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
 import java.io.ByteArrayOutputStream;
@@ -64,5 +68,21 @@ public class TrainingEntry {
 
     public void setGameOutcome(Integer gameOutcome) {
         this.gameOutcome = gameOutcome;
+    }
+
+    public TInt32 getNnetInput() {
+        return this.gameState.getTensor();
+    }
+
+    public Tensor getExpectedPolicyOutput() {
+        //OPTIMISE TFloat16 or 32?
+        //convert policyvalues and gameoutcome into Tensor
+        float[] output = new float[this.policyValues.size()];
+        for (int i = 0; i < this.policyValues.size(); i++) output[i] = this.policyValues.get(i);
+        return TFloat16.vectorOf(output);
+    }
+
+    public Tensor getExepectedGameOutput() {
+        return TInt32.scalarOf(this.gameOutcome);
     }
 }
