@@ -14,7 +14,7 @@ import java.util.List;
  */
 public interface MinimaxGameState<T> {
 
-    List<MinimaxGameState<T>> getChildStates();
+    List<? extends MinimaxGameState<T>> getChildStates();
 
     boolean isGameFinished();
 

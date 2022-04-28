@@ -16,7 +16,7 @@ public class MinimaxGame<T> {
         buildTree(root);
     }
     private void buildTree(Node<T> parent){
-        List<MinimaxGameState<T>> possibleGameStates = parent.gameState.getChildStates();
+        List<? extends MinimaxGameState<T>> possibleGameStates = parent.gameState.getChildStates();
         boolean isChildMaximising = !parent.isMaximisingPlayer();
         if (parent.gameState.isGameFinished() || possibleGameStates == null || possibleGameStates.size() == 0) return;
         possibleGameStates.forEach(gamestate -> {
