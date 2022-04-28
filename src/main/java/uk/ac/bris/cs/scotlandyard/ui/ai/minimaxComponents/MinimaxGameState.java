@@ -10,13 +10,15 @@ import java.util.List;
  * getScore should return the value of the state relative to others
  * getMoveLeadingToState should return the move that was applied to the previous gamestate to get
  * to current.
+ * @implNote use Move class as parameter to interface
  */
-public interface MinimaxGameState {
-    List<MinimaxGameState> getChildStates();
+public interface MinimaxGameState<T> {
+
+    List<MinimaxGameState<T>> getChildStates();
 
     boolean isGameFinished();
 
     int getScore();
 
-    Move getMoveLeadingToState();
+    T getMoveLeadingToState();
 }

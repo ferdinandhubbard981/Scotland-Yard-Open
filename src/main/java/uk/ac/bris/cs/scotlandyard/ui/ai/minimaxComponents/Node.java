@@ -1,16 +1,22 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai.minimaxComponents;
 
+import uk.ac.bris.cs.scotlandyard.model.Move;
+
 import java.util.List;
 
-public class Node {
+/**
+ *
+ * @param <T> use Move with real implementation
+ */
+public class Node<T> {
     int score;
     boolean isMaximisingPlayer;
-    MinimaxGameState gameState;
-    List<Node> childNodes;
-    Node parentNode;
+    MinimaxGameState<T> gameState;
+    List<Node<T>> childNodes;
+    Node<T> parentNode;
     int depth;
 
-    public Node(MinimaxGameState gameState, boolean isMaximisingPlayer, int depth, Node parentNode) {
+    public Node(MinimaxGameState<T> gameState, boolean isMaximisingPlayer, int depth, Node<T> parentNode) {
         this.gameState = gameState;
         this.isMaximisingPlayer = isMaximisingPlayer;
         this.depth = depth;
@@ -29,19 +35,23 @@ public class Node {
         this.score = score;
     }
 
-    public List<Node> getChildNodes() {
+    public List<Node<T>> getChildNodes() {
         return childNodes;
     }
 
-    public void addChildNode(Node childNode) {
+    public void addChildNode(Node<T> childNode) {
         this.childNodes.add(childNode);
     }
 
-    public Node getParentNode() {
+    public Node<T> getParentNode() {
         return parentNode;
     }
 
-    public void setParentNode(Node parentNode) {
+    /*public void setParentNode(Node<T> parentNode) {
         this.parentNode = parentNode;
+    }*/
+
+    public MinimaxGameState<T> getGameState() {
+        return gameState;
     }
 }
