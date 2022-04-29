@@ -201,7 +201,9 @@ public class Game {
 
     public void getNextState(int moveIndex) {
         try {
-            this.currentState = this.currentState.advance(getMoveFromIndex(moveIndex)); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+            Move move = getMoveFromIndex(moveIndex);
+            if (move == null) move = this.currentState.getAvailableMoves().stream().findFirst().get();
+            this.currentState = this.currentState.advance(move); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -213,11 +215,11 @@ public class Game {
 
     public Move getMoveFromIndex(int moveIndex) {
         List<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex).toList();
-        //todo select first
-        if (filteredMoves.size() > 1)
-            throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
-        else if (filteredMoves.size() == 0)
-            throw new IllegalArgumentException("\n\nno matching move\n\n");
+        if (filteredMoves.size() != 1) return null;
+//        if (filteredMoves.size() > 1)
+//            throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
+//        else if (filteredMoves.size() == 0)
+//            throw new IllegalArgumentException("\n\nno matching move\n\n");
         return filteredMoves.get(0); //this is ok because we check in the previous lines for size of list
     }
     public int getMoveIndex(Move move) {

@@ -99,10 +99,4 @@ public class NnetInput {
         TFloat32 output = TFloat32.tensorOf(ndArr);
         return output;
     }
-
-//    public INDArray getIndArray() {
-//        //TODO
-//        //convert to IndArray
-//        return null;
-//    }
 }

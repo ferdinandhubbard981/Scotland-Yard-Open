@@ -57,7 +57,7 @@ public class NnetAI implements Ai {
         int moveIndex = policy.indexOf(highestPolicyVal);
         this.gameAPI.setValidMoves();
         List<Integer> validMoveTable = this.gameAPI.getValidMoveTable();
-        if (validMoveTable.get(moveIndex) == 0) {
+        if (moveIndex == -1 || validMoveTable.get(moveIndex) == 0) {
             //invalid move was selected
             System.out.printf("\n\nmove %d is an invalid move\n\n", moveIndex);
             //check that there is at least 1 valid move. if not the game should have ended
@@ -66,6 +66,7 @@ public class NnetAI implements Ai {
             moveIndex = validMoveTable.indexOf(1);
         }
         Move output = this.gameAPI.getMoveFromIndex(moveIndex);
+        if (output == null) output = board.getAvailableMoves().stream().findFirst().get();
         return output;
     }
 

@@ -104,7 +104,6 @@ public class Coach {
                 this.mrXTrainingExamplesHistory.add(mrXIterationTrainingExamples.stream().toList());
                 this.detTrainingExamplesHistory.add(detIterationTrainingExamples.stream().toList());
 
-                //TODO this might be redundant
 //                if (this.mrXTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
 //                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.mrXTrainingExamplesHistory.size());
 //                    this.mrXTrainingExamplesHistory.remove();

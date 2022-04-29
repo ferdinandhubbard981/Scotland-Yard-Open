@@ -46,7 +46,6 @@ public class Arena {
         players.add(this.mcts2);
 
         //start new game
-        //TODO pit mrX vs Det
         int it = 0;
         //while game not ended
         while (this.game.getGameEnded() == 0) {
