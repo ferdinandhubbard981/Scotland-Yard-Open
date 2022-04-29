@@ -33,4 +33,12 @@ public class GraphNode implements Comparable<GraphNode> {
     public int compareTo(GraphNode o) {
         return (this.equals(o) ? 0 : this.value < o.getValue() ? -1 : 1);
     }
+
+    public boolean strictEquality(Object o){
+        return this.equals(o) && ((GraphNode) o).getValue() == this.getValue();
+    }
+
+    public void setValue(int value) {
+        this.value = value;
+    }
 }
