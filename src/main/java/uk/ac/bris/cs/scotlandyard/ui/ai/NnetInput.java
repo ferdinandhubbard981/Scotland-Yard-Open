@@ -1,7 +1,13 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 import org.tensorflow.Tensor;
+import org.tensorflow.ndarray.FloatNdArray;
+import org.tensorflow.ndarray.NdArray;
+import org.tensorflow.ndarray.NdArrays;
+import org.tensorflow.ndarray.Shape;
+import org.tensorflow.ndarray.buffer.FloatDataBuffer;
 import org.tensorflow.types.TFloat16;
+import org.tensorflow.types.TFloat32;
 import org.tensorflow.types.TInt32;
 
 import java.io.ByteArrayOutputStream;
@@ -9,8 +15,10 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.PLAYERSINPUTSIZE;
-import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.TICKETSINPUTSIZE;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.*;
 
 //@param board 2d vector of one hot encoded players (6 bits, 1 for each player)
 public class NnetInput {
@@ -78,9 +86,18 @@ public class NnetInput {
         return output.toByteArray();
     }
 
-    public TInt32 getTensor() {
-        //TODO
-        return null;
+    public TFloat32 getTensor() {
+//        float[] listOut = new float[NNETINPUTBOARDSIZE * PLAYERSINPUTSIZE];
+        FloatNdArray ndArr = NdArrays.ofFloats(Shape.of(1, NNETINPUTBOARDSIZE * PLAYERSINPUTSIZE));
+        for (int i = 0; i < NNETINPUTBOARDSIZE; i++) {
+            for (int j = 0; j < PLAYERSINPUTSIZE; j++) {
+//                listOut[i] = this.board.get(i).get(j);
+                ndArr.set(NdArrays.scalarOf(this.board.get(i).get(j).floatValue()), 0, i);
+            }
+        }
+//        NdArrays.wrap(Shape.of(1, NNETINPUTBOARDSIZE * PLAYERSINPUTSIZE), FloatDataBuffer)
+        TFloat32 output = TFloat32.tensorOf(ndArr);
+        return output;
     }
 
 //    public INDArray getIndArray() {

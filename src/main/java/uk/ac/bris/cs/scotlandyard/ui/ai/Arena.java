@@ -51,12 +51,16 @@ public class Arena {
         //while game not ended
         while (this.game.getGameEnded() == 0) {
             it++;
-            if (VERBOSE) System.out.printf("Turn %d Player %d%n", it, this.game.currentIsMrX);
+            if (VERBOSE) {
+                System.out.printf("\n\nTurn %d \n\n", it, this.game.currentIsMrX);
+                System.out.print("Player: " + this.game.currentIsMrX);
+            }
 
             //pick move
             int aiIndex = (this.game.currentIsMrX) ? 0: 1;
+            Game tempGame = new Game(this.game);
 //            int moveIndex = this.game.getMoveIndex(players.get(aiIndex).pickMove(gameState, MOVETIME));
-            List<Float> policy = players.get(aiIndex).getActionProb(this.game, numOfSims);
+            List<Float> policy = players.get(aiIndex).getActionProb(tempGame, numOfSims);
             Float highestPolicyVal = policy.stream()
                     .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
             int moveIndex = policy.indexOf(highestPolicyVal);
@@ -66,6 +70,7 @@ public class Arena {
                 System.out.printf("\n\nmove %d is invalid\n\n", moveIndex);
                 //check that there is at least 1 valid move. if not the game should have ended
                 assert(validMoveTable.stream().anyMatch(num -> num == 1));
+                moveIndex = validMoveTable.indexOf(1);
             }
             this.game.getNextState(moveIndex);
         }

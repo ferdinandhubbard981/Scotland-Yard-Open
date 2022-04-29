@@ -200,19 +200,29 @@ public class Game {
     }
 
     public void getNextState(int moveIndex) {
-        this.currentState = this.currentState.advance(getMoveFromIndex(moveIndex)); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        try {
+            this.currentState = this.currentState.advance(getMoveFromIndex(moveIndex)); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
         this.setValidMoves();
         updateCurrentPlayer();
     }
 
     public Move getMoveFromIndex(int moveIndex) {
         List<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex).toList();
-        if (filteredMoves.size() > 1) throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
-        else if (filteredMoves.size() == 0) throw new IllegalArgumentException("\n\nno matching move\n\n");
+        //todo select first
+        if (filteredMoves.size() > 1)
+            throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
+        else if (filteredMoves.size() == 0)
+            throw new IllegalArgumentException("\n\nno matching move\n\n");
         return filteredMoves.get(0); //this is ok because we check in the previous lines for size of list
     }
     public int getMoveIndex(Move move) {
         Quintet<Integer, Integer, Integer, Ticket, Ticket> strippedMove = getStrippedMove(move);
+        System.out.print("\n\nmove: " + strippedMove);
         int moveIndex = moveMap.get(strippedMove);
         return moveIndex;
     }
@@ -285,8 +295,8 @@ public class Game {
 
 //        encode players
         for (int i = 0; i < playerLocations.size(); i++) {
-            int location = playerLocations.get(i);
-            if (location != -1) {
+            int location = playerLocations.get(i)-1;
+            if (location != -2) {
                 List<Integer> oneHotEncodedPlayers = new ArrayList<>(Collections.nCopies(PLAYERSINPUTSIZE, 0));
                 oneHotEncodedPlayers.set(i, 1);
                 board.set(location, oneHotEncodedPlayers);

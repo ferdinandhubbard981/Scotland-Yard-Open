@@ -3,6 +3,7 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import org.tensorflow.Tensor;
 import org.tensorflow.ndarray.NdArray;
 import org.tensorflow.types.TFloat16;
+import org.tensorflow.types.TFloat32;
 import org.tensorflow.types.TInt32;
 import uk.ac.bris.cs.scotlandyard.model.Board;
 
@@ -70,7 +71,7 @@ public class TrainingEntry {
         this.gameOutcome = gameOutcome;
     }
 
-    public TInt32 getNnetInput() {
+    public TFloat32 getNnetInput() {
         return this.gameState.getTensor();
     }
 
@@ -79,10 +80,10 @@ public class TrainingEntry {
         //convert policyvalues and gameoutcome into Tensor
         float[] output = new float[this.policyValues.size()];
         for (int i = 0; i < this.policyValues.size(); i++) output[i] = this.policyValues.get(i);
-        return TFloat16.vectorOf(output);
+        return TFloat32.vectorOf(output);
     }
 
     public Tensor getExepectedGameOutput() {
-        return TInt32.scalarOf(this.gameOutcome);
+        return TFloat32.scalarOf(this.gameOutcome.floatValue());
     }
 }

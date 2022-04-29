@@ -1,3 +1,7 @@
+mrXGraph.pb
+keras_saved_model/
+mrXCheckpoints/
+detCheckpoints/
 # Created by .ignore support plugin (hsz.mobi)
 ### Java template
 *.class

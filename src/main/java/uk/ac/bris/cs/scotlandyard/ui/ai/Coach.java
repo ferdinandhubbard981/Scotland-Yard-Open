@@ -6,8 +6,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Coach {
@@ -21,45 +19,39 @@ public class Coach {
     private static final String SAVEFOLDER = "";
     private static final int NUMOFGAMES = 100;
     private static final String LOADFILE = "checkpoint_x.pth.tar";
-    private static final String TEMPMRXMODELSAVEPATH = "tempMRX.pth.tar";
-    private static final String TEMPDETMODELSAVEPATH = "tempDET.pth.tar";
 
     Game game;
     NeuralNet mrXNnet;
     NeuralNet detNnet;
     MCTS newmcts;
-    Queue<List<TrainingEntry>> mrXTrainingExamplesHistory;
-    Queue<List<TrainingEntry>> detTrainingExamplesHistory;
+    List<List<TrainingEntry>> mrXTrainingExamplesHistory;
+    List<List<TrainingEntry>> detTrainingExamplesHistory;
 
     boolean skipFirstSelfPlay;
 
     public Coach(Game game) throws IOException{
         this.game = game;
         this.mrXNnet = new NeuralNet(this.game, true);
-        this.detNnet = new NeuralNet(this.game, false); //TODO check
+        this.detNnet = new NeuralNet(this.game, false);
         this.newmcts = new MCTS(this.mrXNnet, this.detNnet);
-        this.mrXTrainingExamplesHistory = new SynchronousQueue<>();
-        this.detTrainingExamplesHistory = new SynchronousQueue<>();
+        this.mrXTrainingExamplesHistory = new ArrayList<>();
+        this.detTrainingExamplesHistory = new ArrayList<>();
         this.skipFirstSelfPlay = false;
 
     }
     //trainingExample: <gameState, ismrX, policy, gameOutcome>
-    public Pair<Queue<TrainingEntry>, Queue<TrainingEntry>> executeEpisode() {
-        //TODO sort examples into two lists. One for mrXNnet one for detNnet
+    public Pair<List<TrainingEntry>, List<TrainingEntry>> executeEpisode() throws IOException {
 //        plays out a game and makes each move a new training example
-        Queue<TrainingEntry> mrXTrainingExamples = new SynchronousQueue<>();
-        Queue<TrainingEntry> detTrainingExamples = new SynchronousQueue<>();
-        try {
-            this.game.getInitBoard();
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
+        List<TrainingEntry> mrXTrainingExamples = new ArrayList<>();
+        List<TrainingEntry> detTrainingExamples = new ArrayList<>();
+        this.game.getInitBoard();
         int episodeStep = 0;
-        int gameOutcome = 0;
+        int gameOutcome = this.game.getGameEnded();
         while (gameOutcome == 0) {
             episodeStep++;
-            List<Float> pi = this.newmcts.getActionProb(this.game, NUMOFSIMS);
+            System.err.printf("episode step: %d\n", episodeStep);
+            Game tempGame = new Game(this.game);
+            List<Float> pi = this.newmcts.getActionProb(tempGame, NUMOFSIMS);
             //NOTE this will generate more training examples for detectives than mrX
             //add training example
             if (this.game.currentIsMrX)
@@ -72,10 +64,15 @@ public class Coach {
             //select random valid move
             float floatVal = validMoveVals.get(ThreadLocalRandom.current().nextInt(0, validMoveVals.size()));
             //get move index
-            int moveIndex = pi.indexOf(floatVal);//TODO check but it should be a valid move
+
+            this.game.setValidMoves();
+            this.game.updateCurrentPlayer();
+            List<Integer> validMoveTable = this.game.getValidMoveTable();
+            int moveIndex = validMoveTable.indexOf(1);
             //get next state
             this.game.getNextState(moveIndex);
-            gameOutcome = this.game.getGameEnded(); //1 is always mrX -1 is always det
+
+            gameOutcome = this.game.getGameEnded(); //1 is current player won -1 is current player lost
 
         }
         //set gameOutcome to all training examples
@@ -94,12 +91,12 @@ public class Coach {
         for (int i = 0; i < NUMOFITER; i++) {
             System.out.printf("Iteration %d\n\n", i);
             if (!SKIPFIRSTSELFPLAY || i > 1) {
-                Queue<TrainingEntry> mrXIterationTrainingExamples = new SynchronousQueue<>();
-                Queue<TrainingEntry> detIterationTrainingExamples = new SynchronousQueue<>();
+                List<TrainingEntry> mrXIterationTrainingExamples = new ArrayList<>();
+                List<TrainingEntry> detIterationTrainingExamples = new ArrayList<>();
                 //generating training data
                 for (int j = 0; j < NUMEPS; j++) {
                     this.newmcts = new MCTS(this.mrXNnet, this.detNnet);
-                    Pair<Queue<TrainingEntry>, Queue<TrainingEntry>> newTrainingData= this.executeEpisode();
+                    Pair<List<TrainingEntry>, List<TrainingEntry>> newTrainingData= this.executeEpisode();
                     mrXIterationTrainingExamples.addAll(newTrainingData.left());
                     detIterationTrainingExamples.addAll(newTrainingData.right());
                 }
@@ -108,14 +105,14 @@ public class Coach {
                 this.detTrainingExamplesHistory.add(detIterationTrainingExamples.stream().toList());
 
                 //TODO this might be redundant
-                if (this.mrXTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
-                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.mrXTrainingExamplesHistory.size());
-                    this.mrXTrainingExamplesHistory.remove();
-                }
-                if (this.detTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
-                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.detTrainingExamplesHistory.size());
-                    this.detTrainingExamplesHistory.remove();
-                }
+//                if (this.mrXTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
+//                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.mrXTrainingExamplesHistory.size());
+//                    this.mrXTrainingExamplesHistory.remove();
+//                }
+//                if (this.detTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
+//                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.detTrainingExamplesHistory.size());
+//                    this.detTrainingExamplesHistory.remove();
+//                }
 
                 //saving training data
                 try {
@@ -143,8 +140,8 @@ public class Coach {
                 Collections.shuffle(detTrainingExamples);
 
                 //save old nnets
-                this.mrXNnet.save_checkpoint(TEMPMRXMODELSAVEPATH);
-                this.detNnet.save_checkpoint(TEMPDETMODELSAVEPATH);
+                this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
+                this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
                 //save previous iteration
                 MCTS previousMCTS = new MCTS(this.mrXNnet, this.detNnet);
                 //train
@@ -164,8 +161,8 @@ public class Coach {
                 if (total == 0 || winrate < UPDATETHRESHOLD){
                     //reject new model
                     System.out.printf("\n\nRejecting model wr: %f", winrate);
-                    this.mrXNnet.load_checkpoint(TEMPMRXMODELSAVEPATH);
-                    this.detNnet.load_checkpoint(TEMPDETMODELSAVEPATH);
+                    this.mrXNnet.load_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
+                    this.detNnet.load_checkpoint(NeuralNet.DETCHECKPOINTDIR);
                 }
                 else {
                     //accept new model
@@ -188,7 +185,7 @@ public class Coach {
         return String.format("checkpoint_%s_%d.pth.tar", player, iteration);
     }
 
-    public void saveTrainExamples(Queue<List<TrainingEntry>> trainingExamplesHistory, int iteration, boolean isMrX) throws IOException {
+    public void saveTrainExamples(List<List<TrainingEntry>> trainingExamplesHistory, int iteration, boolean isMrX) throws IOException {
         // Creating binary file
         FileOutputStream fout = new FileOutputStream(getCheckpointFile(isMrX, iteration) + ".examples");
         DataOutputStream dout=new DataOutputStream(fout);
@@ -205,10 +202,10 @@ public class Coach {
         fout.close();
     }
 
-    public Queue<List<TrainingEntry>> getTrainExamples() throws IOException {
+    public List<List<TrainingEntry>> getTrainExamples() throws IOException {
         FileInputStream fin = new FileInputStream(SAVEFOLDER + LOADFILE + ".examples");
         DataInputStream din = new DataInputStream(fin);
-        Queue<List<TrainingEntry>> newTrainingExamplesHistory = new SynchronousQueue<>();
+        List<List<TrainingEntry>> newTrainingExamplesHistory = new ArrayList<>();
         int trainingExamplesHistorySize = din.readInt();
         for (int i = 0; i < trainingExamplesHistorySize; i++) {
             int listSize = din.readInt();
