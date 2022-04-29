@@ -4,7 +4,9 @@ import org.junit.runners.Suite;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
-        GraphNodeTest.class
+        GraphNodeTest.class,
+        GraphNodeSetTest.class,
+        PathFinderTest.class
 })
 
 public class TestRunner {}
