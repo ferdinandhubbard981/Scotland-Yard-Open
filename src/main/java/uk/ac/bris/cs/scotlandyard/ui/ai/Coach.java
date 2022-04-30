@@ -13,17 +13,16 @@ public class Coach {
     //!!!IF YOU CHANGE NUMITERSFORTRAININGEXAMPLESHISTORY then you must delete all PREVIOUS training examples
     private static final int NUMITERSFORTRAININGEXAMPLESHISTORY = 1;
     private static final int NUMOFSIMS = 20;
-    private static final int NUMOFITER = 10;
+    private static final int NUMOFITER = 2;
     private static final int NUMEPS = 1;
     private static final boolean SKIPFIRSTSELFPLAY = false;
     private static final String SAVEFOLDER = "";
-    private static final int NUMOFGAMES = 100;
+    private static final int NUMOFGAMES = 2;
     private static final String LOADFILE = "checkpoint_x.pth.tar";
 
     Game game;
     NeuralNet mrXNnet;
     NeuralNet detNnet;
-    MCTS newmcts;
     List<List<TrainingEntry>> mrXTrainingExamplesHistory;
     List<List<TrainingEntry>> detTrainingExamplesHistory;
 
@@ -33,7 +32,6 @@ public class Coach {
         this.game = game;
         this.mrXNnet = new NeuralNet(this.game, true);
         this.detNnet = new NeuralNet(this.game, false);
-        this.newmcts = new MCTS(this.mrXNnet, this.detNnet);
         this.mrXTrainingExamplesHistory = new ArrayList<>();
         this.detTrainingExamplesHistory = new ArrayList<>();
         this.skipFirstSelfPlay = false;
@@ -51,7 +49,8 @@ public class Coach {
             episodeStep++;
             System.err.printf("episode step: %d\n", episodeStep);
             Game tempGame = new Game(this.game);
-            List<Float> pi = this.newmcts.getActionProb(tempGame, NUMOFSIMS);
+            MCTS curMCTS = new MCTS(this.mrXNnet, this.detNnet);
+            List<Float> pi = curMCTS.getActionProb(tempGame, NUMOFSIMS);
             //NOTE this will generate more training examples for detectives than mrX
             //add training example
             if (this.game.currentIsMrX)
@@ -95,7 +94,6 @@ public class Coach {
                 List<TrainingEntry> detIterationTrainingExamples = new ArrayList<>();
                 //generating training data
                 for (int j = 0; j < NUMEPS; j++) {
-                    this.newmcts = new MCTS(this.mrXNnet, this.detNnet);
                     Pair<List<TrainingEntry>, List<TrainingEntry>> newTrainingData= this.executeEpisode();
                     mrXIterationTrainingExamples.addAll(newTrainingData.left());
                     detIterationTrainingExamples.addAll(newTrainingData.right());
@@ -141,16 +139,17 @@ public class Coach {
                 //save old nnets
                 this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
                 this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
-                //save previous iteration
-                MCTS previousMCTS = new MCTS(this.mrXNnet, this.detNnet);
+                //save previous iteration\
+                List<NeuralNet> prevNnets= List.of(new NeuralNet(this.mrXNnet), new NeuralNet(this.detNnet));
                 //train
+                System.out.printf("training\n\n");
                 this.mrXNnet.train(mrXTrainingExamples);
                 this.detNnet.train(detTrainingExamples);
-                MCTS newMCTS = new MCTS(this.mrXNnet, this.detNnet);
+                List<NeuralNet> newNnets = List.of(new NeuralNet(this.mrXNnet), new NeuralNet(this.detNnet));
 
                 //pit new vs old
-                System.out.printf("pitting against previous version");
-                Arena arena = new Arena(this.game, newMCTS , previousMCTS);
+                System.out.printf("pitting against previous version\n\n");
+                Arena arena = new Arena(this.game, newNnets , prevNnets);
                 Pair<Integer, Integer> playthroughOutcomes = arena.playGames(NUMOFGAMES, NUMOFSIMS);
 
                 //get winrates

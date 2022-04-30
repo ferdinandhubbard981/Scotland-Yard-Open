@@ -10,11 +10,9 @@ import java.util.concurrent.TimeUnit;
 public class Arena {
     private static final boolean VERBOSE = true;
     private static final Pair<Long, TimeUnit> MOVETIME = new Pair<>(2L, TimeUnit.SECONDS);
-    Ai player1;
-    Ai player2;
     Game game;
-    MCTS mcts1;
-    MCTS mcts2;
+    List<NeuralNet> newNnets;
+    List<NeuralNet> prevNnets;
 //    public Arena(String ai1Name, String ai2Name, Game game) {
 //        ImmutableList<Ai> ais = scanAis();
 //        this.player1 = ais.stream().filter(ai -> ai.name().equals(ai1Name)).findAny().get(); //player1 is always mrX because he plays first
@@ -22,37 +20,37 @@ public class Arena {
 //        this.game = game;
 //    }
 
-    public Arena(Game game, MCTS mcts1, MCTS mcts2) {
-        this.mcts1 = mcts1;
-        this.mcts2 = mcts2;
+    public Arena(Game game, List<NeuralNet> newNnets, List<NeuralNet> prevNnets) {
+        assert (newNnets.size() == 2);
+        assert (prevNnets.size() == 2);
+        this.newNnets = newNnets;
+        this.prevNnets = prevNnets;
         this.game = game;
     }
 
-    Integer playGame(int numOfSims) {
+    Integer playGame(int numOfSims) throws IOException {
         //performs one game
         //returns 1 if player1 wins, -1 if player2 wins
 
-        try {
-            this.game.getInitBoard();
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
+        this.game.getInitBoard();
 //        List<Ai> players = new ArrayList<>();
 //        players.add(this.player1);
 //        players.add(this.player2);
-        List<MCTS> players = new ArrayList<>();
-        players.add(this.mcts1);
-        players.add(this.mcts2);
 
         //start new game
         int it = 0;
         //while game not ended
         while (this.game.getGameEnded() == 0) {
+            MCTS previousMCTS = new MCTS(prevNnets.get(0), prevNnets.get(1));
+            MCTS newMCTS = new MCTS(newNnets.get(0), newNnets.get(1));
+            List<MCTS> players = new ArrayList<>();
+            players.add(previousMCTS);
+            players.add(newMCTS);
             it++;
             if (VERBOSE) {
-                System.out.printf("\n\nTurn %d \n\n", it, this.game.currentIsMrX);
-                System.out.print("Player: " + this.game.currentIsMrX);
+                System.out.printf("\n\nTurn %d \n\n", it);
+                String temp = (this.game.currentIsMrX) ? "mrX" : "detective";
+                System.out.printf("\nPlayer is : %s\n", temp);
             }
 
             //pick move
@@ -77,7 +75,7 @@ public class Arena {
         return this.game.getGameEnded();//1 means mrX won
     }
 
-    Pair<Integer, Integer> playGames(int numOfGames, int numOfSims) {
+    Pair<Integer, Integer> playGames(int numOfGames, int numOfSims) throws IOException {
         numOfGames /= 2;
         int p1Won = 0;
         int p2Won = 0;
@@ -88,9 +86,9 @@ public class Arena {
         }
 
         //switch players so each ai play both mrx and detectives
-        Ai temp = this.player1;
-        this.player1 = this.player2;
-        this.player2 = temp;
+        List<NeuralNet> temp = this.newNnets;
+        this.newNnets = this.prevNnets;
+        this.prevNnets = temp;
 
         for (int i = 0; i < numOfGames; i++) {
             int gameResult = this.playGame(numOfSims);

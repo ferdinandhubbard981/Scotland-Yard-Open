@@ -104,9 +104,6 @@ public class Game {
                 for (Triplet<Integer, Integer, Ticket> moveArc2 : secondMoveArcs) {
                     int dest2 = moveArc2.getValue1();
                     Ticket Ticket2 = moveArc2.getValue2();
-                    if (dest1 == dest2) {
-                        System.out.printf("");
-                    }
                     //add move
                     if (output.put(new Quintet<>(source, dest1, dest2, Ticket1, Ticket2), numOfPossibleMoves) == null)
                         numOfPossibleMoves++;
@@ -224,7 +221,7 @@ public class Game {
     }
     public int getMoveIndex(Move move) {
         Quintet<Integer, Integer, Integer, Ticket, Ticket> strippedMove = getStrippedMove(move);
-        System.out.print("\n\nmove: " + strippedMove);
+//        System.out.print("\n\nmove: " + strippedMove);
         int moveIndex = moveMap.get(strippedMove);
         return moveIndex;
     }

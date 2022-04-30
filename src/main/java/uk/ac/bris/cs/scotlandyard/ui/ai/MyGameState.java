@@ -9,13 +9,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class MyGameState implements Board.GameState {
-    private GameSetup setup;
-    private ImmutableSet<Piece> remaining; //the players who have yet to play in the round??
-    private ImmutableList<LogEntry> log;
-    private Player mrX;
-    private ImmutableList<Player> detectives;
-    private ImmutableSet<Move> moves;
-    private ImmutableSet<Piece> winner;
+    private final GameSetup setup;
+    private final ImmutableSet<Piece> remaining; //the players who have yet to play in the round??
+    private final ImmutableList<LogEntry> log;
+    private final Player mrX;
+    private final ImmutableList<Player> detectives;
+    private final ImmutableSet<Move> moves;
+    private final ImmutableSet<Piece> winner;
 
 
     public MyGameState(
@@ -30,8 +30,6 @@ public final class MyGameState implements Board.GameState {
         this.log = log;
         this.mrX = mrX;
         this.detectives = detectives;
-        this.winner = ImmutableSet.of();
-        this.moves = ImmutableSet.of();
 
         //checking for null inputs
         if (mrX == null) throw new NullPointerException();
@@ -65,26 +63,34 @@ public final class MyGameState implements Board.GameState {
         Set<Move> detectiveMoves = getMoves(detectives, detectives);
 
         //if mrX is surrounded by detectives then detectives win aka mrX has no moves left
-        if (mrXMoves.isEmpty() && remaining.contains(mrX.piece()))
+        if (mrXMoves.isEmpty() && remaining.contains(mrX.piece())) {
             this.winner = getDetectivesAsImmutableSet();
+            this.moves = ImmutableSet.of();
+            return;
+        }
         //if a detective is on the same square than mrX then the detectives win
         for (Player detective : detectives) {
             if (mrX.location() == detective.location()) {
                 this.winner = getDetectivesAsImmutableSet();
-                break;
+                this.moves = ImmutableSet.of();
+                return;
             }
         }
         //if detectives have no moves left or logbook full then mrX wins
-        if (detectiveMoves.isEmpty() || (log.size() == setup.moves.size() && remaining.isEmpty()))
+        if (detectiveMoves.isEmpty() || (log.size() == setup.moves.size() && remaining.isEmpty())) {
             this.winner = ImmutableSet.of(mrX.piece());
+            this.moves = ImmutableSet.of();
+            return;
+        }
 
         //if none of the conditions above are met then carry on
-        if (this.winner.isEmpty()) {
-            //updates the ACTUAL moves list with the moves of the remaining players
-            Set<Move> allMoves = new HashSet<>(mrXMoves);
-            allMoves.addAll(detectiveMoves);
-            moves = ImmutableSet.copyOf(getRemainingPlayersMoves(allMoves));
-        }
+        this.winner = ImmutableSet.of();
+        //updates the ACTUAL moves list with the moves of the remaining players
+        Set<Move> allMoves = new HashSet<>(mrXMoves);
+        allMoves.addAll(detectiveMoves);
+        this.moves = ImmutableSet.copyOf(getRemainingPlayersMoves(allMoves));
+
+        testAllMovesHaveTickets();
     }
 
     private ImmutableSet<Piece> getDetectivesAsImmutableSet(){
@@ -222,22 +228,24 @@ public final class MyGameState implements Board.GameState {
     @Override
     public MyGameState advance(Move move) { //TODO make function void and only update current gamestate
 //        TODO instead of returning a new one. This should be more efficient because constructors are greedy?
-        if (!moves.contains(move)) throw new IllegalArgumentException("Illegal move: " + move);
+        if (!this.moves.contains(move)) throw new IllegalArgumentException("Illegal move: " + move);
 
         if (move.commencedBy() == this.mrX.piece()) {
             //add move to log (checking if setup.move is hidden or not)
             List<LogEntry> newLog = getNewLog(move, this.setup, this.log);
             //take used tickets away from mrX
-            this.mrX = this.mrX.use(move.tickets());
+            testMoveInAllMoves(move);
+            testAllMovesHaveTickets();
+            Player newmrX = this.mrX.use(move.tickets());
             //move mrX position to destination
-            this.mrX = this.mrX.at(getMoveDestination(move));
+            newmrX = newmrX.at(getMoveDestination(move));
             //swap to the detectives turn (update the remaining variable)
             //mrX plays first therefore all the detectives have yet to play their turn
             ImmutableSet<Piece> newRemainingPlayers = getDetectivesAsImmutableSet();
             return new MyGameState(this.setup,
                     newRemainingPlayers,
                     ImmutableList.copyOf(newLog),
-                    this.mrX,
+                    newmrX,
                     ImmutableList.copyOf(detectives)
             );
         }
@@ -248,7 +256,7 @@ public final class MyGameState implements Board.GameState {
         int index = this.detectives.indexOf(detective);
         //move detective to destination & give ticket to mrX
         detective = detective.at(getMoveDestination(move)).use(move.tickets());
-        mrX = mrX.give(getSingleMoveTicket(move));
+        Player newMrX = this.mrX.give(getSingleMoveTicket(move));
 
         //lambda expression needs value to be final
         final Player finalDetective = detective;
@@ -272,7 +280,7 @@ public final class MyGameState implements Board.GameState {
         mutableDetectives.set(index, detective);
         return new MyGameState(this.setup,
                 ImmutableSet.copyOf(newRemainingPlayers),
-                this.log, this.mrX,
+                this.log, newMrX,
                 ImmutableList.copyOf(mutableDetectives)
         );
     }
@@ -360,4 +368,24 @@ public final class MyGameState implements Board.GameState {
             }
         });
     }
+
+    void testAllMovesHaveTickets() {
+        for (Move move : this.moves) {
+            Piece currentPiece = move.commencedBy();
+            Player currentPlayer = (currentPiece.isMrX()) ? mrX : this.detectives.stream().filter(player -> player.piece() == currentPiece).findFirst().get();
+            Player tempPlayer = new Player(currentPiece, currentPlayer.tickets(), currentPlayer.location());
+            try {tempPlayer.use(move.tickets());}
+            catch (Exception e) {
+                e.printStackTrace();
+                System.exit(1);
+            }
+        }
+    }
+    
+    void testMoveInAllMoves(Move move) {
+        if (this.moves.stream().noneMatch(currMove -> currMove.equals(move))) {
+            throw new IllegalArgumentException("move not in this.moves");
+        }
+    }
+
 };
