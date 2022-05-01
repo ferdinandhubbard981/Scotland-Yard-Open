@@ -80,7 +80,7 @@ public class NnetAI implements Ai {
         return new MyGameState(board.getSetup(), remaining, board.getMrXTravelLog(), mrX, ImmutableList.copyOf(detectives));
     }
 
-    private Player getPlayer(Board board, Piece piece) {
+    private static Player getPlayer(Board board, Piece piece) {
         ImmutableMap<Ticket, Integer> tickets = ticketBoardToMap(board.getPlayerTickets(piece).orElseThrow());
         int location;
         if (piece.isMrX()) {
@@ -104,14 +104,14 @@ public class NnetAI implements Ai {
         return new Player(piece, tickets, location);
     }
 
-    ImmutableMap<Ticket, Integer> ticketBoardToMap(Board.TicketBoard ticketBoard) {
+    static ImmutableMap<Ticket, Integer> ticketBoardToMap(Board.TicketBoard ticketBoard) {
         Map<Ticket, Integer> tickets = new HashMap<>();
         for (Ticket ticket : Ticket.values()) {
             tickets.put(ticket, ticketBoard.getCount(ticket));
         }
         return ImmutableMap.copyOf(tickets);
     }
-    private ImmutableSet<Piece> getRemainingPieces(ImmutableSet<Move> availableMoves) {
+    private static ImmutableSet<Piece> getRemainingPieces(ImmutableSet<Move> availableMoves) {
         //DEBUG if a detective(1) is blocking the only possible move of another detective(2) who has yet to move and that detective(1) moves out of the way, then this function is innacurate
         //however this doesn't cause a big innacuracy in MTCS search
         //to fix this I would need to check for detectives blocking moves myself
