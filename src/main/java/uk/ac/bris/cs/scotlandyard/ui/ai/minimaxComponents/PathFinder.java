@@ -47,7 +47,6 @@ public class PathFinder<T> implements NaivePathFinder{
                     this.previous.put(node, closest.getKey());
                 }
             }
-            queue.remove(closest);
         }
     }
 

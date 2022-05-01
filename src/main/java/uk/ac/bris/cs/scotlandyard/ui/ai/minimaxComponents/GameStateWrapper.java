@@ -49,7 +49,7 @@ public class GameStateWrapper implements MinimaxGameState<Move, Board.GameState>
         if (this.isMrXPlaying && this.isGameFinished) return -999999;
         if (this.isGameFinished) return 999999;
         List<Integer> distances = this.gameState.getPlayers().stream()
-                .filter(Piece::isMrX)
+                .filter(Piece::isDetective)
                 .map(piece -> {
                     int detectiveLocation = this.gameState.getDetectiveLocation((Piece.Detective) piece).get();
                     PathFinder<ImmutableSet<ScotlandYard.Transport>> pathFinder =

@@ -34,7 +34,7 @@ public class GraphNodeSet {
     }
     public List<GraphNode> getNodes(){
         if (this.internal.size() == 0) return List.of();
-        TreeMap<Integer, Integer> byValues = new TreeMap<>((o1, o2) -> Integer.compare(o2, o1) * -1);
+        TreeMap<Integer, Integer> byValues = new TreeMap<>((o1, o2) -> Integer.compare(o2, o1));
         byValues.putAll(this.internal);
         return byValues.entrySet().stream().map(entry -> new GraphNode(entry.getKey(), entry.getValue())).toList();
     }

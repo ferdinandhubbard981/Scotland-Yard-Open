@@ -2,6 +2,7 @@ package uk.ac.bris.cs.scotlandyard.ui.ai.minimaxComponents;
 
 import uk.ac.bris.cs.scotlandyard.model.Move;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -22,6 +23,7 @@ public class Node<T, K> {
         this.isMaximisingPlayer = isMaximisingPlayer;
         this.depth = depth;
         this.parentNode = parentNode;
+        this.childNodes = new ArrayList<>();
     }
 
     public boolean isMaximisingPlayer() {
