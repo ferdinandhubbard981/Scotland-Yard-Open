@@ -70,7 +70,7 @@ public class NnetAI implements Ai {
         return output;
     }
 
-    public MyGameState build(Board board) {
+    static public MyGameState build(Board board) {
         ImmutableSet<Piece> remaining = getRemainingPieces(board.getAvailableMoves());
         Player mrX = getPlayer(board, Piece.MrX.MRX);
         List<Player> detectives = new ArrayList<>();
