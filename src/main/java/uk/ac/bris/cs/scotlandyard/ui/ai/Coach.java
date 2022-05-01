@@ -47,7 +47,7 @@ public class Coach {
         int gameOutcome = this.game.getGameEnded();
         while (gameOutcome == 0) {
             episodeStep++;
-            System.err.printf("episode step: %d\n", episodeStep);
+            System.err.printf("move step: %d\n", episodeStep);
             Game tempGame = new Game(this.game);
             MCTS curMCTS = new MCTS(this.mrXNnet, this.detNnet);
             List<Float> pi = curMCTS.getActionProb(tempGame, NUMOFSIMS);
@@ -112,13 +112,9 @@ public class Coach {
 //                }
 
                 //saving training data
-                try {
-                    this.saveTrainExamples(mrXTrainingExamplesHistory, i-1, true);
-                    this.saveTrainExamples(detTrainingExamplesHistory, i-1, false);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    System.exit(1);
-                }
+//                this.saveTrainExamples(mrXTrainingExamplesHistory, i-1, true);
+//                this.saveTrainExamples(detTrainingExamplesHistory, i-1, false);
+
 
                 //load mrX training data
                 List<TrainingEntry> mrXTrainingExamples = new ArrayList<>();

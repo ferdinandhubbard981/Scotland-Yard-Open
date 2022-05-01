@@ -222,6 +222,7 @@ public class Game {
     public int getMoveIndex(Move move) {
         Quintet<Integer, Integer, Integer, Ticket, Ticket> strippedMove = getStrippedMove(move);
 //        System.out.print("\n\nmove: " + strippedMove);
+        if (strippedMove == null) throw new NullPointerException();
         int moveIndex = moveMap.get(strippedMove);
         return moveIndex;
     }
