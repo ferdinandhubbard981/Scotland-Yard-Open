@@ -9,7 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
-public class GameStateWrapper implements MinimaxGameState<Move> {
+public class GameStateWrapper implements MinimaxGameState<Move, Board.GameState> {
     private final boolean isGameFinished;
     private final int score;
     private final Move moveLeadingToState;
@@ -17,9 +17,15 @@ public class GameStateWrapper implements MinimaxGameState<Move> {
     private final boolean isMrXPlaying;
 
     public GameStateWrapper(Board board, Move moveLeadingToState){
-        this.gameState = NnetAI.build(board);
+        this(NnetAI.build(board), moveLeadingToState);
+    }
+    public GameStateWrapper(GameStateWrapper gameState, Move moveLeadingToState){
+        this(gameState.getUnderlyingGameState(), moveLeadingToState);
+    }
+    public GameStateWrapper(Board.GameState gameState, Move moveLeadingToState){
+        this.gameState = gameState;
         this.moveLeadingToState = moveLeadingToState;
-        this.isMrXPlaying = isMrXPlaying();
+        this.isMrXPlaying = isMrXPlayingCalculator();
         this.isGameFinished = isGameFinishedCalculator();
         this.score = scoreCalculator();
     }
@@ -27,7 +33,7 @@ public class GameStateWrapper implements MinimaxGameState<Move> {
     private boolean isGameFinishedCalculator(){
         return !this.gameState.getWinner().isEmpty();
     }
-    private boolean isMrXPlaying(){
+    private boolean isMrXPlayingCalculator(){
         return this.gameState.getAvailableMoves().asList().get(0).commencedBy().isMrX();
     }
 
@@ -76,5 +82,25 @@ public class GameStateWrapper implements MinimaxGameState<Move> {
     @Override
     public Move getMoveLeadingToState() {
         return this.moveLeadingToState;
+    }
+
+    @Override
+    public Board.GameState getUnderlyingGameState() {
+        return this.gameState;
+    }
+
+    @Override
+    public ImmutableSet<Move> getAvailableMoves() {
+        return this.gameState.getAvailableMoves();
+    }
+
+    @Override
+    public MinimaxGameState<Move, Board.GameState> useMove(Move move) {
+        return new GameStateWrapper(this.gameState.advance(move), move);
+    }
+
+    @Override
+    public boolean isMaximisingPlayer() {
+        return this.isMrXPlaying;
     }
 }

@@ -6,17 +6,18 @@ import java.util.List;
 
 /**
  *
- * @param <T> use Move with real implementation
+ * @param <T> the type of the move
+ * @param <K> the type of the gameState
  */
-public class Node<T> {
+public class Node<T, K> {
     int score;
     boolean isMaximisingPlayer;
-    MinimaxGameState<T> gameState;
-    List<Node<T>> childNodes;
-    Node<T> parentNode;
+    MinimaxGameState<T, K> gameState; //underlying gameState for current node
+    List<Node<T, K>> childNodes;
+    Node<T, K> parentNode;
     int depth;
 
-    public Node(MinimaxGameState<T> gameState, boolean isMaximisingPlayer, int depth, Node<T> parentNode) {
+    public Node(MinimaxGameState<T, K> gameState, boolean isMaximisingPlayer, int depth, Node<T, K> parentNode) {
         this.gameState = gameState;
         this.isMaximisingPlayer = isMaximisingPlayer;
         this.depth = depth;
@@ -35,23 +36,19 @@ public class Node<T> {
         this.score = score;
     }
 
-    public List<Node<T>> getChildNodes() {
+    public List<Node<T, K>> getChildNodes() {
         return childNodes;
     }
 
-    public void addChildNode(Node<T> childNode) {
+    public void addChildNode(Node<T, K> childNode) {
         this.childNodes.add(childNode);
     }
 
-    public Node<T> getParentNode() {
+    public Node<T, K> getParentNode() {
         return parentNode;
     }
 
-    /*public void setParentNode(Node<T> parentNode) {
-        this.parentNode = parentNode;
-    }*/
-
-    public MinimaxGameState<T> getGameState() {
+    public MinimaxGameState<T, K> getGameState() {
         return gameState;
     }
 }
