@@ -39,9 +39,9 @@ public class MCTS {
 
     public List<Float> getActionProb(Game game, int numOfSims, long endTime) {
         numOfSims = (endTime != 0) ? (int)Math.pow(10, 7) : numOfSims;
+        final Game permGame = new Game(game); //this game never changes so we can always refer back to the root node
         //if time != 0 then numOfSims is ignored
-        this.game = game;
-        final Game permGame = this.game; //this game never changes so we can always refer back to the root node
+        this.game = new Game(permGame);
         //performs $numOfSims iterations of MCTS from $gameState
         //returns policy vector
 
@@ -49,11 +49,13 @@ public class MCTS {
         //initializing parent isCurrentMrX of root node. This has not effect it's just to fix an error. we don't care about the output of this.search() for root node
         this.pxs.put(s, true);
         //perform MCTS searches
-        for (int i = 0; i < numOfSims && hasTimeLeft(endTime); i++) {
+        int i = 0;
+        for (; i < numOfSims && hasTimeLeft(endTime); i++) {
+            if (!s.equals(this.game.stringRepresentation())) throw new IllegalArgumentException();
             //perform single MCTS simulation
             this.search();
             //reset game
-            this.game = permGame;
+            this.game = new Game(permGame);
         }
 
         //get moveMap of MoveVisits
@@ -61,6 +63,7 @@ public class MCTS {
         //flatten function
         Float countsSum = numVisits.stream().reduce(0, (total, element) -> total += element).floatValue();
         List<Float> probs = numVisits.stream().map(x -> x / countsSum).toList();
+        //todo remove invalid moves
         return probs;
     }
 
@@ -109,7 +112,7 @@ public class MCTS {
         List<Integer> validMoveTable = this.vs.get(s);
         if (!validMoveTable.contains(1))
             throw new IllegalArgumentException();
-        float bestUCBVal = Float.MIN_VALUE;
+        float bestUCBVal = -Float.MAX_VALUE;
         int bestMoveIndex = -1;
 
         //pick move with highest ucbval
@@ -119,10 +122,12 @@ public class MCTS {
                 Pair<String, Integer> stateActionPair = new Pair<>(s, moveIndex);
                 float ucbVal;
                 if (this.qsa.containsKey(stateActionPair)) {
-                    ucbVal = (float) (this.qsa.get(stateActionPair) + EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s))
+                    ucbVal = (float) (this.qsa.get(stateActionPair) + EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.log(this.ns.get(s))
                             / (1 + this.nsa.get(stateActionPair)));
                 }
-                else ucbVal = (float)(EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s) + 1e-8));
+                else
+//                    ucbVal = (float)(EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s) + 1e-8));
+                    ucbVal = Float.MAX_VALUE;
                 if (ucbVal > bestUCBVal) {
                     bestUCBVal = ucbVal;
                     bestMoveIndex = moveIndex;

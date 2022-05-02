@@ -9,18 +9,23 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Coach {
-    private static final Float UPDATETHRESHOLD = 0.55f;
-    private static final int NUMOFSIMS = 1000;
-    private static final int NUMOFITER = 10;
-    private static final int NUMTRAININGGAMES = 2;
-    private static final int NUMPITGAMES = 6;
+    private static final Float UPDATETHRESHOLD = 0.51f;
+    private static final int NUMOFSIMS = 10000;
+    private static final int NUMOFITER = Integer.MAX_VALUE;
+    private static final int NUMPITGAMES = 10;
     private static final String MRXTRAININGEXAMPLESFILE = "mrXTraining.examples";
     private static final String DETTRAININGEXAMPLESFILE = "detTraining.examples";
-    private static final boolean PITNNETSTOGETHER = false;
-    private static final int PITITERATIONPERIOD = 5; //pit every x iterations
+    private static final boolean PITNNETSTOGETHER = false; //whether to pit or not
+    private static final int PITITERATIONPERIOD = 100; //pit every x iterations
     private static final float DROPOUT = 0.8f;
-    private static final int BATCHSIZE = 16;
+    private static final int BATCHSIZE = 64;
     private static final float LR = 0.001f;
+    private static final int TRAININGSAMPLESIZE = BATCHSIZE * 1; //min number of examples in training set
+    private static final boolean OVERWRITEPREVNNET = false;
+    public static final String MRXCHECKPOINTDIR = "checkpoints/valid/mrX";
+    public static final String DETCHECKPOINTDIR = "detCheckpoints/valid/det";
+    private static final String MRXMINLOSSCHECKPOINTDIR = "checkpoints/minloss/mrX";
+    private static final String DETMINLOSSCHECKPOINTDIR = "checkpoints/minloss/det";
 
     Game game;
     NeuralNet mrXNnet;
@@ -32,8 +37,8 @@ public class Coach {
 
     public Coach(Game game) throws IOException{
         this.game = game;
-        this.mrXNnet = new NeuralNet(this.game, true);
-        this.detNnet = new NeuralNet(this.game, false);
+        this.mrXNnet = new NeuralNet(true, OVERWRITEPREVNNET);
+        this.detNnet = new NeuralNet(false, OVERWRITEPREVNNET);
 //        this.mrXTrainingExamplesHistory = new ArrayList<>();
 //        this.detTrainingExamplesHistory = new ArrayList<>();
         this.skipFirstSelfPlay = false;
@@ -89,43 +94,51 @@ public class Coach {
 
     public void learn() throws IOException {
         //performs 1 iteration of training
-        for (int i = 0; i < NUMOFITER; i++) {
-            System.out.printf("Iteration %d\n\n", i);
+        float minMrXLoss = 10000f;
+        float minDetLoss = 10000f;
+        for (int currIteration = 0; currIteration < NUMOFITER; currIteration++) {
+            System.out.printf("Iteration %d\n\n", currIteration);
+            System.out.printf("time: %d\n", System.nanoTime());
             List<TrainingEntry> mrXTrainingExamples = new ArrayList<>();
             List<TrainingEntry> detTrainingExamples = new ArrayList<>();
             //generating training data
-            for (int j = 0; j < NUMTRAININGGAMES; j++) {
-                //todo make sure there is a minimum number of examples
+            while (mrXTrainingExamples.size() < TRAININGSAMPLESIZE) {
                 Pair<List<TrainingEntry>, List<TrainingEntry>> newTrainingData= this.generateOneGame();
                 mrXTrainingExamples.addAll(newTrainingData.left());
                 detTrainingExamples.addAll(newTrainingData.right());
+                //removing excess training examples
+                if (mrXTrainingExamples.size() > TRAININGSAMPLESIZE)
+                    mrXTrainingExamples = mrXTrainingExamples.subList(0, TRAININGSAMPLESIZE);
+                if (detTrainingExamples.size() > TRAININGSAMPLESIZE)
+                    detTrainingExamples = detTrainingExamples.subList(0, TRAININGSAMPLESIZE);
                 //add training examples to file
 //                boolean overwrite = j == 0; //if first game in iteration we want to overwrite previous iteration training examples
 //                this.saveTrainExamples(mrXTrainingExamples, true, overwrite);
 //                this.saveTrainExamples(detTrainingExamples, false, overwrite);
             }
 
-
-
-
-            //load mrX training data
-
             //shuffling training examples to avoid overfitting
             Collections.shuffle(mrXTrainingExamples);
             Collections.shuffle(detTrainingExamples);
-
-            //save old nnets
-            this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
-            this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
-            //save previous iteration\
-            List<NeuralNet> prevNnets= List.of(new NeuralNet(this.mrXNnet), new NeuralNet(this.detNnet));
+            //load previous iteration
+            List<NeuralNet> prevNnets= List.of(new NeuralNet(true, false), new NeuralNet(false, false));
             //train
-            this.mrXNnet.train(mrXTrainingExamples, DROPOUT, BATCHSIZE, LR);
-            this.detNnet.train(detTrainingExamples, DROPOUT, BATCHSIZE, LR);
+            boolean overwrite = OVERWRITEPREVNNET && currIteration == 0;
+            float mrXLoss = this.mrXNnet.train(mrXTrainingExamples, DROPOUT, BATCHSIZE, LR, overwrite);
+            float detLoss = this.detNnet.train(detTrainingExamples, DROPOUT, BATCHSIZE, LR, overwrite);
+            //todo if average total loss is > that previous: savecheckpoint to minlosscheckpoint/mrx .. /det
+            if (mrXLoss < minMrXLoss) {
+                this.mrXNnet.save_checkpoint(MRXMINLOSSCHECKPOINTDIR);
+                minMrXLoss = mrXLoss;
+            }
+            if (detLoss < minDetLoss) {
+                this.mrXNnet.save_checkpoint(DETMINLOSSCHECKPOINTDIR);
+                minDetLoss = detLoss;
+            }
             List<NeuralNet> newNnets = List.of(this.mrXNnet, this.detNnet);
-            int total;
-            float winrate;
-            if (PITNNETSTOGETHER && i % PITITERATIONPERIOD == 0) {
+
+            //check if we are pitting this iteration
+            if (PITNNETSTOGETHER && (currIteration+1) % PITITERATIONPERIOD == 0) {
                 //pit new vs old
                 System.out.printf("pitting against previous version\n\n");
                 Arena arena = new Arena(this.game, newNnets , prevNnets);
@@ -133,26 +146,23 @@ public class Coach {
 
                 //get winrates
                 System.out.printf("\n\nnewAi:\nwins: %d\nlosses: %d\n\n", playthroughOutcomes.left(), playthroughOutcomes.right());
-                total = playthroughOutcomes.left() + playthroughOutcomes.right();
-                winrate = (float)playthroughOutcomes.left() / total;
-            }
-            else {
-                total = 1000;
-                winrate = 1000;
+                int total = playthroughOutcomes.left() + playthroughOutcomes.right();
+                float winrate = (float)playthroughOutcomes.left() / total;
+                if (total == 0 || winrate < UPDATETHRESHOLD){
+                    //reject new model
+                    System.out.printf("\nRejecting model wr: %f\n", winrate);
+                    this.mrXNnet.load_checkpoint(MRXCHECKPOINTDIR, false);
+                    this.detNnet.load_checkpoint(DETCHECKPOINTDIR, false);
+                }
+                else {
+                    //accept new model
+                    System.out.printf("\nAccepting model wr: %f\n", winrate);
+                    this.mrXNnet.save_checkpoint(MRXCHECKPOINTDIR);
+                    this.detNnet.save_checkpoint(DETCHECKPOINTDIR);
+                }
             }
 
-            if (total == 0 || winrate < UPDATETHRESHOLD){
-                //reject new model
-                System.out.printf("\nRejecting model wr: %f\n", winrate);
-                this.mrXNnet.load_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
-                this.detNnet.load_checkpoint(NeuralNet.DETCHECKPOINTDIR);
-            }
-            else {
-                //accept new model
-                System.out.printf("\nAccepting model wr: %f\n", winrate);
-                this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
-                this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
-                }
+
 
             prevNnets.get(0).closeSess();
             prevNnets.get(1).closeSess();

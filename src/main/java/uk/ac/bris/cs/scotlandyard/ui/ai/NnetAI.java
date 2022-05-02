@@ -43,8 +43,8 @@ public class NnetAI implements Ai {
         NeuralNet mrXNnet = null;
         NeuralNet detNnet = null;
         try {
-            mrXNnet = new NeuralNet(this.gameAPI, true);
-            detNnet = new NeuralNet(this.gameAPI, false);
+            mrXNnet = new NeuralNet(true, false);
+            detNnet = new NeuralNet(false, false);
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);

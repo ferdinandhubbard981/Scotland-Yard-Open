@@ -18,39 +18,35 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Coach.DETCHECKPOINTDIR;
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Coach.MRXCHECKPOINTDIR;
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.INPUTSIZE;
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
 public class NeuralNet {
     private static final String MRXGRAPH = "mrXGraph.pb";
     private static final String DETGRAPH = "detGraph.pb";
-    public static final String MRXCHECKPOINTDIR = "mrXCheckpoints";
-    public static final String DETCHECKPOINTDIR = "detCheckpoints";
+
     private static final String DETLOSSESFOLDER = "losses/mrXLosses/";
     private static final String MRXLOSSESFOLDER = "losses/detLosses/";
 
     private static final String TOTALLOSSFILE = "totalLosses.txt";
     private static final String PILOSSFILE = "piLosses.txt";
     private static final String VLOSSFILE = "vLosses.txt";
-    private static final boolean OVERWRITEPREVNET = false;
 
 
     public final boolean isMrX;
     private Session sess;
 
-    public NeuralNet(NeuralNet clone) {
-        this.sess = clone.sess;
-        this.isMrX = clone.isMrX;
-    }
-    public NeuralNet(Game game, boolean isMrX) throws IOException{
+    public NeuralNet(boolean isMrX, boolean overwrite) throws IOException{
         this.isMrX = isMrX;
-        String path = (game.currentIsMrX) ? MRXGRAPH : DETGRAPH;
-        String checkPointDir = (game.currentIsMrX) ? MRXCHECKPOINTDIR : DETCHECKPOINTDIR;
+        String path = (isMrX) ? MRXGRAPH : DETGRAPH;
+        String checkPointDir = (isMrX) ? MRXCHECKPOINTDIR : DETCHECKPOINTDIR;
         load_model(path);
-        load_checkpoint(checkPointDir);
+        load_checkpoint(checkPointDir, overwrite);
     }
 
-    public void train(List<TrainingEntry> trainingExamples, float dropout, int batchSize, float lr) throws IOException {
+    public float train(List<TrainingEntry> trainingExamples, float dropout, int batchSize, float lr, boolean overwrite) throws IOException {
         //todo load data from file (preferably by changing network). If not then in this function
         //this would allow for larger number of games that don't fit in memory
 
@@ -83,10 +79,10 @@ public class NeuralNet {
         }
         //output loss values to file
         String lossesFolder = (isMrX) ? MRXLOSSESFOLDER : DETLOSSESFOLDER;
-        writeFloatListToFile(totalLossList, lossesFolder + TOTALLOSSFILE);
-        writeFloatListToFile(piLossList, lossesFolder + PILOSSFILE);
-        writeFloatListToFile(vLossList, lossesFolder + VLOSSFILE);
-
+        writeFloatListToFile(totalLossList, lossesFolder + TOTALLOSSFILE, overwrite);
+        writeFloatListToFile(piLossList, lossesFolder + PILOSSFILE, overwrite);
+        writeFloatListToFile(vLossList, lossesFolder + VLOSSFILE, overwrite);
+        return totalLossList.stream().reduce(0f, (t, e) -> t + e) / totalLossList.size();
     }
 
     private Tensor getBatchedExpectedPolicy(List<TrainingEntry> trainingExamples, int batchSize, Integer currIndex) {
@@ -147,10 +143,10 @@ public class NeuralNet {
         TString checkpointPrefix = TString.scalarOf(Paths.get(checkpointDir, "ckpt").toString());
         this.sess.runner().feed("save/Const", checkpointPrefix).addTarget("save/control_dependency").run();
     }
-    public void load_checkpoint(String checkpointDir) {
+    public void load_checkpoint(String checkpointDir, boolean overwrite) {
         final boolean checkpointExists = Files.exists(Paths.get(checkpointDir, "ckpt"));
         TString checkpointPrefix = TString.scalarOf(Paths.get(checkpointDir, "ckpt").toString());
-        if (checkpointExists && !OVERWRITEPREVNET) {
+        if (checkpointExists && !overwrite) {
             this.sess.runner().feed("save/Const", checkpointPrefix).addTarget("save/restore_all").run();
         } else {
             this.sess.runner().addTarget("init").run();
@@ -167,8 +163,8 @@ public class NeuralNet {
 //        this.nnet = load.session();
     }
 
-    void writeFloatListToFile(List<Float> floatList, String filePath) throws IOException {
-        FileWriter writer = new FileWriter(filePath, !OVERWRITEPREVNET);
+    void writeFloatListToFile(List<Float> floatList, String filePath, boolean overwrite) throws IOException {
+        FileWriter writer = new FileWriter(filePath, !overwrite);
         for(Float element: floatList) {
             writer.write(String.format("%f\n", element));
         }

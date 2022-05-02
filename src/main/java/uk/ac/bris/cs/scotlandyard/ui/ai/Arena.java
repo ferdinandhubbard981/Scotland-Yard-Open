@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class Arena {
-    private static final boolean VERBOSE = true;
+    private static final boolean VERBOSE = false;
     private static final Pair<Long, TimeUnit> MOVETIME = new Pair<>(2L, TimeUnit.SECONDS);
     Game game;
     List<NeuralNet> newNnets;

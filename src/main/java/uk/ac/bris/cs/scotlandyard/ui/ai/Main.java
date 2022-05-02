@@ -6,7 +6,7 @@ import java.io.IOException;
  * Delegates to the actual UI main
  */
 public class Main {
-	private static final Boolean ISTRAINING = false;
+	private static final Boolean ISTRAINING = true;
 	public static void main(String[] args) {
 		if (!ISTRAINING) {
 			uk.ac.bris.cs.scotlandyard.Main.main(args);

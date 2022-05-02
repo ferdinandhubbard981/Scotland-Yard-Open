@@ -271,7 +271,7 @@ public class Game {
     }
 
     public String stringRepresentation() {
-        return this.currentState.toString(); //TODO check if this is enough for hashmap (needs to generate a unique key)
+        return String.valueOf(this.currentState.hashCode()); //todo check if this works
     }
 
     public void updateCurrentPlayer() {
