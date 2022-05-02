@@ -1,16 +1,6 @@
 package test.aiTests;
 
-import org.junit.jupiter.api.Test;
-import org.junit.Before;
-import uk.ac.bris.cs.scotlandyard.model.Move;
-import uk.ac.bris.cs.scotlandyard.ui.ai.Game;
-import uk.ac.bris.cs.scotlandyard.ui.ai.NnetInput;
-
-import java.io.IOException;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.isA;
-import static org.hamcrest.MatcherAssert.assertThat;
+import org.testng.annotations.Test;
 
 public class NNetInputTest {
     /*use different data sets*/
