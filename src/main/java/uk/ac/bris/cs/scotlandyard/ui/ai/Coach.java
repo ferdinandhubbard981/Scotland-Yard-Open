@@ -10,21 +10,23 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Coach {
     private static final Float UPDATETHRESHOLD = 0.55f;
-    //!!!IF YOU CHANGE NUMITERSFORTRAININGEXAMPLESHISTORY then you must delete all PREVIOUS training examples
-    private static final int NUMITERSFORTRAININGEXAMPLESHISTORY = 1;
-    private static final int NUMOFSIMS = 20;
-    private static final int NUMOFITER = 2;
-    private static final int NUMEPS = 1;
-    private static final boolean SKIPFIRSTSELFPLAY = false;
-    private static final String SAVEFOLDER = "";
-    private static final int NUMOFGAMES = 2;
-    private static final String LOADFILE = "checkpoint_x.pth.tar";
+    private static final int NUMOFSIMS = 1000;
+    private static final int NUMOFITER = 10;
+    private static final int NUMTRAININGGAMES = 2;
+    private static final int NUMPITGAMES = 6;
+    private static final String MRXTRAININGEXAMPLESFILE = "mrXTraining.examples";
+    private static final String DETTRAININGEXAMPLESFILE = "detTraining.examples";
+    private static final boolean PITNNETSTOGETHER = false;
+    private static final int PITITERATIONPERIOD = 5; //pit every x iterations
+    private static final float DROPOUT = 0.8f;
+    private static final int BATCHSIZE = 16;
+    private static final float LR = 0.001f;
 
     Game game;
     NeuralNet mrXNnet;
     NeuralNet detNnet;
-    List<List<TrainingEntry>> mrXTrainingExamplesHistory;
-    List<List<TrainingEntry>> detTrainingExamplesHistory;
+//    List<List<TrainingEntry>> mrXTrainingExamplesHistory;
+//    List<List<TrainingEntry>> detTrainingExamplesHistory;
 
     boolean skipFirstSelfPlay;
 
@@ -32,14 +34,15 @@ public class Coach {
         this.game = game;
         this.mrXNnet = new NeuralNet(this.game, true);
         this.detNnet = new NeuralNet(this.game, false);
-        this.mrXTrainingExamplesHistory = new ArrayList<>();
-        this.detTrainingExamplesHistory = new ArrayList<>();
+//        this.mrXTrainingExamplesHistory = new ArrayList<>();
+//        this.detTrainingExamplesHistory = new ArrayList<>();
         this.skipFirstSelfPlay = false;
 
     }
     //trainingExample: <gameState, ismrX, policy, gameOutcome>
-    public Pair<List<TrainingEntry>, List<TrainingEntry>> executeEpisode() throws IOException {
+    public Pair<List<TrainingEntry>, List<TrainingEntry>> generateOneGame() throws IOException {
 //        plays out a game and makes each move a new training example
+        System.out.printf("generating game\n");
         List<TrainingEntry> mrXTrainingExamples = new ArrayList<>();
         List<TrainingEntry> detTrainingExamples = new ArrayList<>();
         this.game.getInitBoard();
@@ -47,14 +50,13 @@ public class Coach {
         int gameOutcome = this.game.getGameEnded();
         while (gameOutcome == 0) {
             episodeStep++;
-            System.err.printf("move step: %d\n", episodeStep);
+//            System.out.printf("move step: %d\n", episodeStep);
             Game tempGame = new Game(this.game);
             MCTS curMCTS = new MCTS(this.mrXNnet, this.detNnet);
-            List<Float> pi = curMCTS.getActionProb(tempGame, NUMOFSIMS);
+            List<Float> pi = curMCTS.getActionProb(tempGame, NUMOFSIMS, 0);
             //NOTE this will generate more training examples for detectives than mrX
             //add training example
-            if (this.game.currentIsMrX)
-                mrXTrainingExamples.add(new TrainingEntry(new NnetInput(this.game), pi, 0)); //we do not know the gameOutcome yet so 0 is a placeholder
+            if (this.game.currentIsMrX) mrXTrainingExamples.add(new TrainingEntry(new NnetInput(this.game), pi, 0)); //we do not know the gameOutcome yet so 0 is a placeholder
             else detTrainingExamples.add(new TrainingEntry(new NnetInput(this.game), pi, 0)); //we do not know the gameOutcome yet so 0 is a placeholder
 
 //            getting randomMove from all possible Moves
@@ -86,102 +88,88 @@ public class Coach {
     }
 
     public void learn() throws IOException {
-        //performs 1 epoch
+        //performs 1 iteration of training
         for (int i = 0; i < NUMOFITER; i++) {
             System.out.printf("Iteration %d\n\n", i);
-            if (!SKIPFIRSTSELFPLAY || i > 1) {
-                List<TrainingEntry> mrXIterationTrainingExamples = new ArrayList<>();
-                List<TrainingEntry> detIterationTrainingExamples = new ArrayList<>();
-                //generating training data
-                for (int j = 0; j < NUMEPS; j++) {
-                    Pair<List<TrainingEntry>, List<TrainingEntry>> newTrainingData= this.executeEpisode();
-                    mrXIterationTrainingExamples.addAll(newTrainingData.left());
-                    detIterationTrainingExamples.addAll(newTrainingData.right());
-                }
-                //formatting training data
-                this.mrXTrainingExamplesHistory.add(mrXIterationTrainingExamples.stream().toList());
-                this.detTrainingExamplesHistory.add(detIterationTrainingExamples.stream().toList());
-
-//                if (this.mrXTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
-//                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.mrXTrainingExamplesHistory.size());
-//                    this.mrXTrainingExamplesHistory.remove();
-//                }
-//                if (this.detTrainingExamplesHistory.size() > NUMITERSFORTRAININGEXAMPLESHISTORY) {
-//                    System.out.printf("removing oldest entry in trainExamplesHistory of len: %d", this.detTrainingExamplesHistory.size());
-//                    this.detTrainingExamplesHistory.remove();
-//                }
-
-                //saving training data
-//                this.saveTrainExamples(mrXTrainingExamplesHistory, i-1, true);
-//                this.saveTrainExamples(detTrainingExamplesHistory, i-1, false);
+            List<TrainingEntry> mrXTrainingExamples = new ArrayList<>();
+            List<TrainingEntry> detTrainingExamples = new ArrayList<>();
+            //generating training data
+            for (int j = 0; j < NUMTRAININGGAMES; j++) {
+                //todo make sure there is a minimum number of examples
+                Pair<List<TrainingEntry>, List<TrainingEntry>> newTrainingData= this.generateOneGame();
+                mrXTrainingExamples.addAll(newTrainingData.left());
+                detTrainingExamples.addAll(newTrainingData.right());
+                //add training examples to file
+//                boolean overwrite = j == 0; //if first game in iteration we want to overwrite previous iteration training examples
+//                this.saveTrainExamples(mrXTrainingExamples, true, overwrite);
+//                this.saveTrainExamples(detTrainingExamples, false, overwrite);
+            }
 
 
-                //load mrX training data
-                List<TrainingEntry> mrXTrainingExamples = new ArrayList<>();
-                for (List<TrainingEntry> trainingExampleList : this.mrXTrainingExamplesHistory) {
-                    mrXTrainingExamples.addAll(trainingExampleList);
-                }
-                //shuffling training examples to avoid overfitting
-                Collections.shuffle(mrXTrainingExamples);
 
-                //load det training data
-                List<TrainingEntry> detTrainingExamples = new ArrayList<>();
-                for (List<TrainingEntry> trainingExampleList : this.detTrainingExamplesHistory) {
-                    detTrainingExamples.addAll(trainingExampleList);
-                }
-                //shuffling training examples to avoid overfitting
-                Collections.shuffle(detTrainingExamples);
 
-                //save old nnets
-                this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
-                this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
-                //save previous iteration\
-                List<NeuralNet> prevNnets= List.of(new NeuralNet(this.mrXNnet), new NeuralNet(this.detNnet));
-                //train
-                System.out.printf("training\n\n");
-                this.mrXNnet.train(mrXTrainingExamples);
-                this.detNnet.train(detTrainingExamples);
-                List<NeuralNet> newNnets = List.of(new NeuralNet(this.mrXNnet), new NeuralNet(this.detNnet));
+            //load mrX training data
 
+            //shuffling training examples to avoid overfitting
+            Collections.shuffle(mrXTrainingExamples);
+            Collections.shuffle(detTrainingExamples);
+
+            //save old nnets
+            this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
+            this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
+            //save previous iteration\
+            List<NeuralNet> prevNnets= List.of(new NeuralNet(this.mrXNnet), new NeuralNet(this.detNnet));
+            //train
+            this.mrXNnet.train(mrXTrainingExamples, DROPOUT, BATCHSIZE, LR);
+            this.detNnet.train(detTrainingExamples, DROPOUT, BATCHSIZE, LR);
+            List<NeuralNet> newNnets = List.of(this.mrXNnet, this.detNnet);
+            int total;
+            float winrate;
+            if (PITNNETSTOGETHER && i % PITITERATIONPERIOD == 0) {
                 //pit new vs old
                 System.out.printf("pitting against previous version\n\n");
                 Arena arena = new Arena(this.game, newNnets , prevNnets);
-                Pair<Integer, Integer> playthroughOutcomes = arena.playGames(NUMOFGAMES, NUMOFSIMS);
+                Pair<Integer, Integer> playthroughOutcomes = arena.playGames(NUMPITGAMES, NUMOFSIMS);
 
                 //get winrates
                 System.out.printf("\n\nnewAi:\nwins: %d\nlosses: %d\n\n", playthroughOutcomes.left(), playthroughOutcomes.right());
-                int total = playthroughOutcomes.left() + playthroughOutcomes.right();
-                float winrate = (float)playthroughOutcomes.left() / total;
-                if (total == 0 || winrate < UPDATETHRESHOLD){
-                    //reject new model
-                    System.out.printf("\n\nRejecting model wr: %f", winrate);
-                    this.mrXNnet.load_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
-                    this.detNnet.load_checkpoint(NeuralNet.DETCHECKPOINTDIR);
-                }
-                else {
-                    //accept new model
-                    System.out.printf("\n\nAccepting model wr: %f", winrate);
-                    String mrXPath = SAVEFOLDER + this.getCheckpointFile(true, i);
-                    String detPath = SAVEFOLDER + this.getCheckpointFile(false, i);
-                    this.mrXNnet.save_checkpoint(mrXPath);
-                    this.detNnet.save_checkpoint(detPath);
-                    }
+                total = playthroughOutcomes.left() + playthroughOutcomes.right();
+                winrate = (float)playthroughOutcomes.left() / total;
+            }
+            else {
+                total = 1000;
+                winrate = 1000;
+            }
+
+            if (total == 0 || winrate < UPDATETHRESHOLD){
+                //reject new model
+                System.out.printf("\nRejecting model wr: %f\n", winrate);
+                this.mrXNnet.load_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
+                this.detNnet.load_checkpoint(NeuralNet.DETCHECKPOINTDIR);
+            }
+            else {
+                //accept new model
+                System.out.printf("\nAccepting model wr: %f\n", winrate);
+                this.mrXNnet.save_checkpoint(NeuralNet.MRXCHECKPOINTDIR);
+                this.detNnet.save_checkpoint(NeuralNet.DETCHECKPOINTDIR);
                 }
 
+            prevNnets.get(0).closeSess();
+            prevNnets.get(1).closeSess();
             }
 
         }
 
 
-    public String getCheckpointFile(boolean isMrX, int iteration) {
-        String player = "Det";
-        if (isMrX) player = "MrX";
-        return String.format("checkpoint_%s_%d.pth.tar", player, iteration);
+    public String getCheckpointFile(boolean isMrX) {
+        if (isMrX) return MRXTRAININGEXAMPLESFILE;
+        return DETTRAININGEXAMPLESFILE;
     }
 
-    public void saveTrainExamples(List<List<TrainingEntry>> trainingExamplesHistory, int iteration, boolean isMrX) throws IOException {
+    public void saveTrainExamples(List<List<TrainingEntry>> trainingExamplesHistory, boolean isMrX, boolean overwrite) throws IOException {
+        //todo save data in a way that can be loaded directly into network (as tensors)
         // Creating binary file
-        FileOutputStream fout = new FileOutputStream(getCheckpointFile(isMrX, iteration) + ".examples");
+        FileOutputStream fout = new FileOutputStream(getCheckpointFile(isMrX) + ".examples", !overwrite);
         DataOutputStream dout=new DataOutputStream(fout);
         //write num of elements for list reconstruction
         dout.write(trainingExamplesHistory.size());
@@ -196,8 +184,8 @@ public class Coach {
         fout.close();
     }
 
-    public List<List<TrainingEntry>> getTrainExamples() throws IOException {
-        FileInputStream fin = new FileInputStream(SAVEFOLDER + LOADFILE + ".examples");
+    public List<List<TrainingEntry>> getTrainExamples(boolean isMrX) throws IOException {
+        FileInputStream fin = new FileInputStream(getCheckpointFile(isMrX));
         DataInputStream din = new DataInputStream(fin);
         List<List<TrainingEntry>> newTrainingExamplesHistory = new ArrayList<>();
         int trainingExamplesHistorySize = din.readInt();

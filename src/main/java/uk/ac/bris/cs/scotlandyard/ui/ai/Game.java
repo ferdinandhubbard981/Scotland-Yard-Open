@@ -2,19 +2,19 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.javatuples.Pair;
 import org.javatuples.Quintet;
 import org.javatuples.Triplet;
 import uk.ac.bris.cs.scotlandyard.model.*;
 import uk.ac.bris.cs.scotlandyard.model.ScotlandYard.Ticket;
-import uk.ac.bris.cs.scotlandyard.model.ScotlandYard.Transport;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static uk.ac.bris.cs.scotlandyard.model.ScotlandYard.*;
 
@@ -24,16 +24,18 @@ public class Game {
     MyGameState currentState;
     boolean currentIsMrX;
     Set<Move> validMoves;
-    public static final int POSSIBLEMOVES = 21778;
-
+    public static final int POSSIBLEMOVES = 21898;
+    private static final int NULLTICKETVAL = 10; //single moves ticket2
+    private static final int NULLDESTINATIONVAL = 1000; //single moves dest2
     //VALUES FOR NNET ENCODING OF BOARD
     public static final int NNETINPUTBOARDSIZE = 199;
     public static final int PLAYERSINPUTSIZE = 6;
     public static final int TICKETSINPUTSIZE = 5;
+    public static final int INPUTSIZE = 1225;
 
     //moveMap: Quintet<source, dest1, dest2, Ticket1, Ticket2> -> Integer
     //if move is singleMove then dest2 = null and Ticket2 = null
-    public final Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> moveMap; //maps every one of the $POSSIBLEMOVES to an integer
+    public final Map<Quintet<Integer, Integer, Integer, Integer, Integer>, Integer> moveMap; //maps every one of the $POSSIBLEMOVES to an integer
     public Game(Game copyGame) {
         this.moveMap = copyGame.moveMap;
         this.currentState = copyGame.currentState;
@@ -42,13 +44,13 @@ public class Game {
     }
     public Game() throws IOException {
         this.moveMap = this.makeMoveMap();
-        assert(this.moveMap.size() == POSSIBLEMOVES);
+        if (!(this.moveMap.size() == POSSIBLEMOVES)) throw new IllegalArgumentException();
     }
 
     public void setGameState(MyGameState gameState) {this.currentState = gameState;}
 
-    private Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> makeMoveMap() throws IOException {
-        Map<Quintet<Integer, Integer, Integer, Ticket, Ticket>, Integer> output = new HashMap<>();
+    private Map<Quintet<Integer, Integer, Integer, Integer, Integer>, Integer> makeMoveMap() throws IOException {
+        Map<Quintet<Integer, Integer, Integer, Integer, Integer>, Integer> output = new HashMap<>();
         int numOfPossibleMoves = 0;
         //open file
         BufferedReader br = new BufferedReader(new FileReader(MOVEMAPFILEPATH));
@@ -62,17 +64,17 @@ public class Game {
             //get source
             int source = Integer.parseInt(strings.get(0));
             //load current moveArcs at source
-            List<Triplet<Integer, Integer, Ticket>> moveArcs = singleMoveArcs.getOrDefault(source, new ArrayList<>());
+            Set<Triplet<Integer, Integer, Ticket>> moveArcs = singleMoveArcs.getOrDefault(source, new ArrayList<>()).stream().collect(Collectors.toSet());
             //add new moveArcs(from the current line in the file) to the old ones
             moveArcs.addAll(stringToMoveArc(strings, false));
             //udpate the map
-            singleMoveArcs.put(source, moveArcs);
+            singleMoveArcs.put(source, moveArcs.stream().toList());
 
             //add moves going the other way because all moves are undirected
             source = Integer.parseInt(strings.get(1));
-            moveArcs = singleMoveArcs.getOrDefault(source, new ArrayList<>());
+            moveArcs = singleMoveArcs.getOrDefault(source, new ArrayList<>()).stream().collect(Collectors.toSet());
             moveArcs.addAll(stringToMoveArc(strings, true));
-            singleMoveArcs.put(source, moveArcs);
+            singleMoveArcs.put(source, moveArcs.stream().toList());
         }
         //add single moves
         //iterate through every node on the graph
@@ -82,31 +84,36 @@ public class Game {
             if (moveArcs == null) continue;
             for (Triplet<Integer, Integer, Ticket> moveArc : moveArcs) {
                 int source = moveArc.getValue0(), dest1 = moveArc.getValue1();
-                Ticket Ticket1 = moveArc.getValue2();
+                Integer ticket1 = moveArc.getValue2().ordinal();
                 //add move
-                if (output.put(new Quintet<>(source, dest1, null, Ticket1, null), numOfPossibleMoves) == null)
-                    numOfPossibleMoves++;
+                //todo error null == 0 so it doesn't work
+                if (output.put(new Quintet<>(source, dest1, NULLDESTINATIONVAL, ticket1, NULLTICKETVAL), numOfPossibleMoves) != null) {
+                    throw new IllegalArgumentException();
+                }
+                numOfPossibleMoves++;
             }
         }
         //add double moves
         //iterate through every node on the graph
-        for (int i = 0; i < NNETINPUTBOARDSIZE; i++) {
+        for (int i = 1; i < NNETINPUTBOARDSIZE+1; i++) {
             //iterate through every move arc from source i
             List<Triplet<Integer, Integer, Ticket>> moveArcs = singleMoveArcs.get(i);
-            if (moveArcs == null) continue;
+            if (moveArcs == null) throw new IllegalArgumentException();
             for (Triplet<Integer, Integer, Ticket> moveArc1 : moveArcs) {
                 int source = moveArc1.getValue0(), dest1 = moveArc1.getValue1();
-                assert (source == i);
-                Ticket Ticket1 = moveArc1.getValue2();
+                if (!(source == i)) throw new IllegalArgumentException();
+                Integer Ticket1 = moveArc1.getValue2().ordinal();
                 //iterate thorugh every move arc from every destination
                 List<Triplet<Integer, Integer, Ticket>> secondMoveArcs = singleMoveArcs.get(dest1);
                 if (secondMoveArcs == null) continue;
                 for (Triplet<Integer, Integer, Ticket> moveArc2 : secondMoveArcs) {
                     int dest2 = moveArc2.getValue1();
-                    Ticket Ticket2 = moveArc2.getValue2();
+                    Integer Ticket2 = moveArc2.getValue2().ordinal();
                     //add move
-                    if (output.put(new Quintet<>(source, dest1, dest2, Ticket1, Ticket2), numOfPossibleMoves) == null)
-                        numOfPossibleMoves++;
+                    if (output.put(new Quintet<>(source, dest1, dest2, Ticket1, Ticket2), numOfPossibleMoves) != null) {
+                        throw new IllegalArgumentException();
+                    }
+                    numOfPossibleMoves++;
                 }
             }
         }
@@ -114,7 +121,7 @@ public class Game {
     }
 
     private List<Triplet<Integer, Integer, Ticket>> stringToMoveArc(List<String> inputStrings, boolean reverse) {
-        assert(inputStrings.size() == 3);
+        if (!(inputStrings.size() == 3)) throw new IllegalArgumentException();
         List<Triplet<Integer, Integer, Ticket>> output = new ArrayList<>();
         //val0: source, val1: dest1, val2: Ticket
         List<Ticket> validTickets = getTickets(inputStrings.get(2));
@@ -197,32 +204,33 @@ public class Game {
     }
 
     public void getNextState(int moveIndex) {
-        try {
-            Move move = getMoveFromIndex(moveIndex);
-            if (move == null) move = this.currentState.getAvailableMoves().stream().findFirst().get();
-            this.currentState = this.currentState.advance(move); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
+
+        Move move = getValidMoveFromIndex(moveIndex);
+//        if (move == null) move = this.currentState.getAvailableMoves().stream().findFirst().get();
+        this.currentState = this.currentState.advance(move); //TODO don't create new gameState. Apparently it's inefficient (make your own more efficient version?)
+
         this.setValidMoves();
         updateCurrentPlayer();
     }
 
-    public Move getMoveFromIndex(int moveIndex) {
+    public Move getValidMoveFromIndex(int moveIndex) {
         List<Move> filteredMoves = this.validMoves.stream().filter(move -> getMoveIndex(move) == moveIndex).toList();
-        if (filteredMoves.size() != 1) return null;
-//        if (filteredMoves.size() > 1)
-//            throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
-//        else if (filteredMoves.size() == 0)
-//            throw new IllegalArgumentException("\n\nno matching move\n\n");
+//        if (filteredMoves.size() != 1) return null;
+        if (filteredMoves.size() > 1) {
+            List<Integer> temp = this.validMoves.stream().map(move -> getMoveIndex(move)).toList();
+            throw new IllegalArgumentException("\n\nmore than one matching move\n\n");
+        }
+        if (filteredMoves.size() == 0) {
+            List<Integer> temp = this.validMoves.stream().map(move -> getMoveIndex(move)).toList();
+            throw new IllegalArgumentException("\n\nno matching move\n\n");
+        }
         return filteredMoves.get(0); //this is ok because we check in the previous lines for size of list
     }
     public int getMoveIndex(Move move) {
-        Quintet<Integer, Integer, Integer, Ticket, Ticket> strippedMove = getStrippedMove(move);
+        Quintet<Integer, Integer, Integer, Integer, Integer> strippedMove = getStrippedMove(move);
 //        System.out.print("\n\nmove: " + strippedMove);
-        if (strippedMove == null) throw new NullPointerException();
+        if (!moveMap.containsKey(strippedMove))
+            throw new NullPointerException();
         int moveIndex = moveMap.get(strippedMove);
         return moveIndex;
     }
@@ -240,14 +248,14 @@ public class Game {
     public List<Integer> getValidMoveTable() {
         return getMoveTable(this.validMoves);
     }
-    private Quintet<Integer, Integer, Integer, Ticket, Ticket> getStrippedMove(Move move) {
+    private Quintet<Integer, Integer, Integer, Integer, Integer> getStrippedMove(Move move) {
         return move.accept(new Move.Visitor<>() {
-            public Quintet<Integer, Integer, Integer, Ticket, Ticket> visit(Move.SingleMove singleMove) {
-                return new Quintet<>(singleMove.source(), singleMove.destination, null, singleMove.ticket, null);
+            public Quintet<Integer, Integer, Integer, Integer, Integer> visit(Move.SingleMove singleMove) {
+                return new Quintet<>(singleMove.source(), singleMove.destination, NULLDESTINATIONVAL, singleMove.ticket.ordinal(), NULLTICKETVAL);
             }
 
-            public Quintet<Integer, Integer, Integer, Ticket, Ticket> visit(Move.DoubleMove doubleMove) {
-                return new Quintet<>(doubleMove.source(), doubleMove.destination1, doubleMove.destination2, doubleMove.ticket1, doubleMove.ticket2);
+            public Quintet<Integer, Integer, Integer, Integer, Integer> visit(Move.DoubleMove doubleMove) {
+                return new Quintet<>(doubleMove.source(), doubleMove.destination1, doubleMove.destination2, doubleMove.ticket1.ordinal(), doubleMove.ticket2.ordinal());
             }
         });
 
@@ -362,6 +370,15 @@ public class Game {
             }
             return numOfRounds;
         }
+    }
+
+    List<Integer> getVisitsMap(Map<Pair<String, Integer>, Integer> nsa, String s) {
+        List<Integer> numVisits = new ArrayList<>(Collections.nCopies(POSSIBLEMOVES, 0));
+        for (int a = 0; a < POSSIBLEMOVES; a++) {
+            Pair<String, Integer> pair = new Pair<>(s, a);
+            if (nsa.containsKey(pair)) numVisits.set(a, nsa.get(pair));
+        }
+        return numVisits;
     }
 }
 

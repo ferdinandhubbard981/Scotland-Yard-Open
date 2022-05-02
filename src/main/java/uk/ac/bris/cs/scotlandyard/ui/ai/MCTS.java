@@ -3,11 +3,13 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import org.javatuples.Pair;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
 public class MCTS {
     private static final float EXPLORATIONCONSTANT = (float) Math.sqrt(2);
+    private static final long MINMILLISECREMAINING = 500;
     NeuralNet mrXNnet;
     NeuralNet detNnet;
     Game game;
@@ -21,8 +23,8 @@ public class MCTS {
 
     public MCTS(NeuralNet mrXNnet, NeuralNet detNnet) {
         //to ensure I typed them the right way around
-        assert(mrXNnet.isMrX);
-        assert (!detNnet.isMrX);
+        if (!mrXNnet.isMrX) throw new IllegalArgumentException();
+        if (detNnet.isMrX) throw new IllegalArgumentException();
         //initializing variables
         this.mrXNnet = mrXNnet;
         this.detNnet = detNnet;
@@ -35,17 +37,19 @@ public class MCTS {
         this.pxs = new HashMap<>();
     }
 
-    public List<Float> getActionProb(Game game, int numOfSims) { //TODO ADD a time parameter that only works if numOfSims == 0
+    public List<Float> getActionProb(Game game, int numOfSims, long endTime) {
+        numOfSims = (endTime != 0) ? (int)Math.pow(10, 7) : numOfSims;
+        //if time != 0 then numOfSims is ignored
         this.game = game;
         final Game permGame = this.game; //this game never changes so we can always refer back to the root node
         //performs $numOfSims iterations of MCTS from $gameState
         //returns policy vector
 
         final String s = this.game.stringRepresentation();
-        //initializing parrent isCurrentMrX of root node. This has not effect it's just to fix an error. we don't care about the output of this.search() for root node
+        //initializing parent isCurrentMrX of root node. This has not effect it's just to fix an error. we don't care about the output of this.search() for root node
         this.pxs.put(s, true);
         //perform MCTS searches
-        for (int i = 0; i < numOfSims; i++) {
+        for (int i = 0; i < numOfSims && hasTimeLeft(endTime); i++) {
             //perform single MCTS simulation
             this.search();
             //reset game
@@ -53,17 +57,10 @@ public class MCTS {
         }
 
         //get moveMap of MoveVisits
-        List<Integer> counts = new ArrayList<>();
-        for (int a = 0; a < POSSIBLEMOVES; a++) {
-            Pair<String, Integer> pair = new Pair<>(s, a);
-            if (this.nsa.containsKey(pair)) counts.add(nsa.get(pair));
-            else counts.add(0);
-        }
-
-        //TODO flatten function?
-
-        Float countsSum = counts.stream().reduce(0, (total, element) -> total += element).floatValue();
-        List<Float> probs = counts.stream().map(x -> x / countsSum).toList();
+        List<Integer> numVisits = this.game.getVisitsMap(nsa, s);
+        //flatten function
+        Float countsSum = numVisits.stream().reduce(0, (total, element) -> total += element).floatValue();
+        List<Float> probs = numVisits.stream().map(x -> x / countsSum).toList();
         return probs;
     }
 
@@ -99,7 +96,7 @@ public class MCTS {
             //normalize policy
             if (pssSum > 0) this.ps.put(s, this.ps.get(s).stream().map(val -> val / pssSum).toList());
             else {
-                System.err.println("\n\nall moves were masked nnet might be inadequate\n\n");
+                System.err.println("all output moves were invalid, nnet might be inadequate\n");
                 //putting validMoveTable as policy + normalizing them
                 this.ps.put(s, validMoveTable.stream().map(val -> val / pssSum).toList());
             }
@@ -109,14 +106,16 @@ public class MCTS {
             else return v;
         }
 
-        List<Integer> validMoveIndexes = this.vs.get(s);
+        List<Integer> validMoveTable = this.vs.get(s);
+        if (!validMoveTable.contains(1))
+            throw new IllegalArgumentException();
         float bestUCBVal = Float.MIN_VALUE;
         int bestMoveIndex = -1;
 
         //pick move with highest ucbval
         //TODO split into functions
         for (int moveIndex = 0; moveIndex < POSSIBLEMOVES; moveIndex++) {
-            if (validMoveIndexes.get(moveIndex) != 0) {
+            if (validMoveTable.get(moveIndex) != 0) {
                 Pair<String, Integer> stateActionPair = new Pair<>(s, moveIndex);
                 float ucbVal;
                 if (this.qsa.containsKey(stateActionPair)) {
@@ -159,5 +158,11 @@ public class MCTS {
         this.ns.put(s, this.ns.get(s)+1);
         if (this.pxs.get(s) != currentIsMrX) return -1 * v;
         else return v;
+    }
+
+    boolean hasTimeLeft(long endtime) {
+        if (endtime == 0) return true;
+        if (endtime - System.nanoTime() > TimeUnit.MILLISECONDS.toNanos(MINMILLISECREMAINING)) return true;
+        return false;
     }
 }
