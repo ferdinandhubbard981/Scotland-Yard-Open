@@ -3,7 +3,6 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 import java.util.*;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -36,6 +35,7 @@ public class NnetAI implements Ai {
     @Nonnull @Override public Move pickMove(
             @Nonnull Board board,
             Pair<Long, TimeUnit> timeoutPair) {
+        long endTime = System.nanoTime() + timeoutPair.right().toNanos(timeoutPair.left());
         //set currentState from board
         this.gameAPI.setGameState(build(board));
         this.gameAPI.setValidMoves();
@@ -43,15 +43,17 @@ public class NnetAI implements Ai {
         NeuralNet mrXNnet = null;
         NeuralNet detNnet = null;
         try {
-            mrXNnet = new NeuralNet(this.gameAPI, true);
-            detNnet = new NeuralNet(this.gameAPI, false);
+            mrXNnet = new NeuralNet(true, false);
+            detNnet = new NeuralNet(false, false);
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
         }
         MCTS mcts = new MCTS(mrXNnet, detNnet);
         Game tempGame = new Game(this.gameAPI);
-        List<Float> policy = mcts.getActionProb(tempGame, 5);
+        List<Float> policy = mcts.getActionProb(tempGame, 0, endTime);
+        mrXNnet.closeSess();
+        detNnet.closeSess();
         Float highestPolicyVal = policy.stream()
                 .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
         int moveIndex = policy.indexOf(highestPolicyVal);
@@ -61,11 +63,11 @@ public class NnetAI implements Ai {
             //invalid move was selected
             System.out.printf("\n\nmove %d is an invalid move\n\n", moveIndex);
             //check that there is at least 1 valid move. if not the game should have ended
-            assert(validMoveTable.stream().anyMatch(num -> num == 1));
+            if (validMoveTable.stream().noneMatch(num -> num == 1)) throw new IllegalArgumentException();
             //setting moveIndex to a random valid move;
             moveIndex = validMoveTable.indexOf(1);
         }
-        Move output = this.gameAPI.getMoveFromIndex(moveIndex);
+        Move output = this.gameAPI.getValidMoveFromIndex(moveIndex);
         if (output == null) output = board.getAvailableMoves().stream().findFirst().get();
         return output;
     }

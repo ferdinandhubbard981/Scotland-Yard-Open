@@ -2,6 +2,9 @@ package uk.ac.bris.cs.scotlandyard.ui.ai;
 
 import org.javatuples.Pair;
 import org.tensorflow.*;
+import org.tensorflow.ndarray.NdArray;
+import org.tensorflow.ndarray.NdArrays;
+import org.tensorflow.ndarray.Shape;
 import org.tensorflow.ndarray.StdArrays;
 import org.tensorflow.proto.framework.GraphDef;
 import org.tensorflow.types.TBool;
@@ -15,61 +18,105 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Coach.DETCHECKPOINTDIR;
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Coach.MRXCHECKPOINTDIR;
+import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.INPUTSIZE;
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
 public class NeuralNet {
-    private static final int SEED = 123;
-    private static final float LR = 0.001f;
-    private static final float DROPOUT = 0.3f;
-    private static final int EPOCHS = 10;
-    private static final int BATCH_SIZE = 64;
-    private static final int NUM_CHANNELS = 512;
     private static final String MRXGRAPH = "mrXGraph.pb";
     private static final String DETGRAPH = "detGraph.pb";
-    public static final String MRXCHECKPOINTDIR = "mrXCheckpoints";
-    public static final String DETCHECKPOINTDIR = "detCheckpoints";
-    private static final String LOSSESFILE = "losses.txt";
+
+    private static final String DETLOSSESFOLDER = "losses/mrXLosses/";
+    private static final String MRXLOSSESFOLDER = "losses/detLosses/";
+
+    private static final String TOTALLOSSFILE = "totalLosses.txt";
+    private static final String PILOSSFILE = "piLosses.txt";
+    private static final String VLOSSFILE = "vLosses.txt";
 
 
     public final boolean isMrX;
     private Session sess;
 
-    public NeuralNet(NeuralNet clone) {
-        this.sess = clone.sess;
-        this.isMrX = clone.isMrX;
-    }
-    public NeuralNet(Game game, boolean isMrX) throws IOException{
+    public NeuralNet(boolean isMrX, boolean overwrite) throws IOException{
         this.isMrX = isMrX;
-        String path = (game.currentIsMrX) ? MRXGRAPH : DETGRAPH;
-        String checkPointDir = (game.currentIsMrX) ? MRXCHECKPOINTDIR : DETCHECKPOINTDIR;
+        String path = (isMrX) ? MRXGRAPH : DETGRAPH;
+        String checkPointDir = (isMrX) ? MRXCHECKPOINTDIR : DETCHECKPOINTDIR;
         load_model(path);
-        load_checkpoint(checkPointDir);
+        load_checkpoint(checkPointDir, overwrite);
     }
 
-    public void train(List<TrainingEntry> trainingExamples) throws IOException {
-        System.out.printf("training\n");
-        List<Float> losses = new ArrayList<>();
-        for (TrainingEntry example : trainingExamples) {
-//            Shape shape = Shape.of(NNETINPUTBOARDSIZE);
-            List<Tensor> result = this.sess.runner()
-                    .feed("input" ,example.getNnetInput())
-                    .feed("dropout", TFloat32.scalarOf(0.3f))
-                    .feed("targetPolicy", example.getExpectedPolicyOutput())
-                    .feed("targetV", example.getExepectedGameOutput())
-                    .feed("is_training", TBool.scalarOf(true))
-                    .fetch("add:0")
-//                    .fetch("softmax_cross_entropy_loss/value:0")
-                    .addTarget("Adam").run();
-            TFloat32 loss = (TFloat32) result.get(0);
-            losses.add(loss.getFloat());
-        }
-        //todo output loss values to file
-        writeFloatListToFile(losses, LOSSESFILE);
+    public float train(List<TrainingEntry> trainingExamples, float dropout, int batchSize, float lr, boolean overwrite) throws IOException {
+        //todo load data from file (preferably by changing network). If not then in this function
+        //this would allow for larger number of games that don't fit in memory
 
+        System.out.printf("training\n");
+        List<Float> totalLossList = new ArrayList<>();
+        List<Float> piLossList = new ArrayList<>();
+        List<Float> vLossList = new ArrayList<>();
+        for (int i = 0; i < trainingExamples.size(); i += batchSize) {
+            //todo check index is updated
+            Tensor input = getBatchedInput(trainingExamples, batchSize, i);
+            Tensor expectedPolicy = getBatchedExpectedPolicy(trainingExamples, batchSize, i);
+            Tensor expectedValue = getBatchedExpectedValue(trainingExamples, batchSize, i);
+            List<Tensor> result = this.sess.runner()
+                    .feed("input" ,input)
+                    .feed("dropout", TFloat32.scalarOf(dropout))
+                    .feed("lr", TFloat32.scalarOf(lr))//learning rate
+                    .feed("targetPolicy", expectedPolicy)
+                    .feed("targetV", expectedValue)
+                    .feed("is_training", TBool.scalarOf(true))
+                    .fetch("add:0") //total loss
+                    .fetch("softmax_cross_entropy_loss/value:0") //pi loss
+                    .fetch("mean_squared_error/value:0") //v loss
+                    .addTarget("Adam").run();
+            TFloat32 totalLoss = (TFloat32) result.get(0);
+            TFloat32 piLoss = (TFloat32) result.get(1);
+            TFloat32 vLoss = (TFloat32) result.get(2);
+            totalLossList.add(totalLoss.getFloat());
+            piLossList.add(piLoss.getFloat());
+            vLossList.add(vLoss.getFloat());
+        }
+        //output loss values to file
+        String lossesFolder = (isMrX) ? MRXLOSSESFOLDER : DETLOSSESFOLDER;
+        writeFloatListToFile(totalLossList, lossesFolder + TOTALLOSSFILE, overwrite);
+        writeFloatListToFile(piLossList, lossesFolder + PILOSSFILE, overwrite);
+        writeFloatListToFile(vLossList, lossesFolder + VLOSSFILE, overwrite);
+        return totalLossList.stream().reduce(0f, (t, e) -> t + e) / totalLossList.size();
+    }
+
+    private Tensor getBatchedExpectedPolicy(List<TrainingEntry> trainingExamples, int batchSize, Integer currIndex) {
+        //todo
+        batchSize = Math.min(batchSize, trainingExamples.size() - currIndex);
+        NdArray<Float> ndArr = NdArrays.ofFloats(Shape.of(batchSize, POSSIBLEMOVES));
+        for (int i = 0; i < batchSize; i++) {
+            ndArr.set(trainingExamples.get(currIndex+i).getExpectedPolicyOutput(), i);
+        }
+        return TFloat32.tensorOf(ndArr);
+    }
+
+    private Tensor getBatchedExpectedValue(List<TrainingEntry> trainingExamples, int batchSize, int currIndex) {
+        //todo
+        batchSize = Math.min(batchSize, trainingExamples.size() - currIndex);
+        NdArray<Float> ndArr = NdArrays.ofFloats(Shape.of(batchSize));
+        for (int i = 0; i < batchSize; i++) {
+            ndArr.set(trainingExamples.get(currIndex+i).getExepectedGameOutput(), i);
+        }
+        return TFloat32.tensorOf(ndArr);
+    }
+
+    private Tensor getBatchedInput(List<TrainingEntry> trainingExamples, int batchSize, int currIndex) {
+        //todo
+        batchSize = Math.min(batchSize, trainingExamples.size() - currIndex);
+        NdArray<Float> ndArr = NdArrays.ofFloats(Shape.of(batchSize, INPUTSIZE));
+        for (int i = 0; i < batchSize; i++) {
+            ndArr.set(trainingExamples.get(currIndex+i).getNnetInput(), i);
+        }
+        return TFloat32.tensorOf(ndArr);
     }
 
     public Pair<List<Float>, Float> predict(NnetInput gameState) {
-        Tensor input = gameState.getTensor();
+        Tensor input = TFloat32.tensorOf(gameState.getNdArr());
 //        Reshape<TFloat32> rinput = Reshape.create()
         List<Tensor> output = this.sess.runner()
                 .feed("input", input)
@@ -82,7 +129,7 @@ public class NeuralNet {
     }
 
     private Pair<List<Float>, Float> tensorsToPair(List<Tensor> tensors) {
-        assert(tensors.size() == 2);
+        if (tensors.size() != 2) throw new IllegalArgumentException();
         float[][] converted = StdArrays.array2dCopyOf((TFloat32) tensors.get(1));
         List<Float> policy = new ArrayList<>();
         for (int i = 0; i < POSSIBLEMOVES; i++) {
@@ -96,10 +143,10 @@ public class NeuralNet {
         TString checkpointPrefix = TString.scalarOf(Paths.get(checkpointDir, "ckpt").toString());
         this.sess.runner().feed("save/Const", checkpointPrefix).addTarget("save/control_dependency").run();
     }
-    public void load_checkpoint(String checkpointDir) {
-        final boolean checkpointExists = Files.exists(Paths.get(checkpointDir));
+    public void load_checkpoint(String checkpointDir, boolean overwrite) {
+        final boolean checkpointExists = Files.exists(Paths.get(checkpointDir, "ckpt"));
         TString checkpointPrefix = TString.scalarOf(Paths.get(checkpointDir, "ckpt").toString());
-        if (checkpointExists) {
+        if (checkpointExists && !overwrite) {
             this.sess.runner().feed("save/Const", checkpointPrefix).addTarget("save/restore_all").run();
         } else {
             this.sess.runner().addTarget("init").run();
@@ -116,12 +163,16 @@ public class NeuralNet {
 //        this.nnet = load.session();
     }
 
-    void writeFloatListToFile(List<Float> floatList, String filePath) throws IOException {
-        FileWriter writer = new FileWriter(filePath, true);
+    void writeFloatListToFile(List<Float> floatList, String filePath, boolean overwrite) throws IOException {
+        FileWriter writer = new FileWriter(filePath, !overwrite);
         for(Float element: floatList) {
             writer.write(String.format("%f\n", element));
         }
         writer.close();
+    }
+
+    public void closeSess() {
+        this.sess.close();
     }
 
 //    public void load_model(String path) throws IOException {

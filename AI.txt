@@ -17,3 +17,10 @@ numOfRoundsSinceReveal: continous integer
 output: real : [-1, 1] representing value of the state from mrX' perspective
 if mrX is winning the value will be closer to 1
 if mrX is losing the value will be closer to -1
+
+hyperparameters:
+batch-size
+learning rate
+dropout
+
+EXPLORATION CONSTANT (can't be found the same way than the others)

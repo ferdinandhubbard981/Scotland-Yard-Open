@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class Arena {
-    private static final boolean VERBOSE = true;
+    private static final boolean VERBOSE = false;
     private static final Pair<Long, TimeUnit> MOVETIME = new Pair<>(2L, TimeUnit.SECONDS);
     Game game;
     List<NeuralNet> newNnets;
@@ -21,8 +21,8 @@ public class Arena {
 //    }
 
     public Arena(Game game, List<NeuralNet> newNnets, List<NeuralNet> prevNnets) {
-        assert (newNnets.size() == 2);
-        assert (prevNnets.size() == 2);
+        if (!(newNnets.size() == 2)) throw new IllegalArgumentException();
+        if (!(prevNnets.size() == 2)) throw new IllegalArgumentException();
         this.newNnets = newNnets;
         this.prevNnets = prevNnets;
         this.game = game;
@@ -57,7 +57,7 @@ public class Arena {
             int aiIndex = (this.game.currentIsMrX) ? 0: 1;
             Game tempGame = new Game(this.game);
 //            int moveIndex = this.game.getMoveIndex(players.get(aiIndex).pickMove(gameState, MOVETIME));
-            List<Float> policy = players.get(aiIndex).getActionProb(tempGame, numOfSims);
+            List<Float> policy = players.get(aiIndex).getActionProb(tempGame, numOfSims, 0);
             Float highestPolicyVal = policy.stream()
                     .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
             int moveIndex = policy.indexOf(highestPolicyVal);
@@ -66,7 +66,7 @@ public class Arena {
                 //invalid move was selected
                 System.out.printf("\n\nmove %d is invalid\n\n", moveIndex);
                 //check that there is at least 1 valid move. if not the game should have ended
-                assert(validMoveTable.stream().anyMatch(num -> num == 1));
+                if (!validMoveTable.stream().anyMatch(num -> num == 1)) throw new IllegalArgumentException();
                 moveIndex = validMoveTable.indexOf(1);
             }
             this.game.getNextState(moveIndex);

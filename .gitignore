@@ -1,7 +1,6 @@
 mrXGraph.pb
 keras_saved_model/
-mrXCheckpoints/
-detCheckpoints/
+checkpoints/
 checkpoint_Det_*
 checkpoint_MrX_*
 # Created by .ignore support plugin (hsz.mobi)

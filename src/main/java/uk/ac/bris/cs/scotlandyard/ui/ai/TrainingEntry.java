@@ -1,16 +1,11 @@
 package uk.ac.bris.cs.scotlandyard.ui.ai;
 
-import org.tensorflow.Tensor;
 import org.tensorflow.ndarray.NdArray;
-import org.tensorflow.types.TFloat16;
-import org.tensorflow.types.TFloat32;
-import org.tensorflow.types.TInt32;
-import uk.ac.bris.cs.scotlandyard.model.Board;
+import org.tensorflow.ndarray.NdArrays;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,19 +66,19 @@ public class TrainingEntry {
         this.gameOutcome = gameOutcome;
     }
 
-    public TFloat32 getNnetInput() {
-        return this.gameState.getTensor();
+    public NdArray<Float> getNnetInput() {
+        return this.gameState.getNdArr();
     }
 
-    public Tensor getExpectedPolicyOutput() {
+    public NdArray<Float> getExpectedPolicyOutput() {
         //OPTIMISE TFloat16 or 32?
-        //convert policyvalues and gameoutcome into Tensor
+        if (policyValues.size() != POSSIBLEMOVES) throw new IllegalArgumentException();
         float[] output = new float[this.policyValues.size()];
-        for (int i = 0; i < this.policyValues.size(); i++) output[i] = this.policyValues.get(i);
-        return TFloat32.vectorOf(output);
+        for (int i = 0; i < POSSIBLEMOVES; i++) output[i] = this.policyValues.get(i);
+        return NdArrays.vectorOf(output);
     }
 
-    public Tensor getExepectedGameOutput() {
-        return TFloat32.scalarOf(this.gameOutcome.floatValue());
+    public NdArray<Float> getExepectedGameOutput() {
+        return NdArrays.scalarOf(this.gameOutcome.floatValue());
     }
 }
