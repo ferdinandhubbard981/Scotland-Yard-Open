@@ -10,7 +10,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Coach {
     private static final Float UPDATETHRESHOLD = 0.51f;
-    private static final int NUMOFSIMS = 10000;
+    private static final int NUMOFSIMS = 100;
     private static final int NUMOFITER = Integer.MAX_VALUE;
     private static final int NUMPITGAMES = 10;
     private static final String MRXTRAININGEXAMPLESFILE = "mrXTraining.examples";

@@ -54,19 +54,20 @@ public class NnetAI implements Ai {
         List<Float> policy = mcts.getActionProb(tempGame, 0, endTime);
         mrXNnet.closeSess();
         detNnet.closeSess();
+
         Float highestPolicyVal = policy.stream()
                 .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
         int moveIndex = policy.indexOf(highestPolicyVal);
-        this.gameAPI.setValidMoves();
-        List<Integer> validMoveTable = this.gameAPI.getValidMoveTable();
-        if (moveIndex == -1 || validMoveTable.get(moveIndex) == 0) {
-            //invalid move was selected
-            System.out.printf("\n\nmove %d is an invalid move\n\n", moveIndex);
-            //check that there is at least 1 valid move. if not the game should have ended
-            if (validMoveTable.stream().noneMatch(num -> num == 1)) throw new IllegalArgumentException();
-            //setting moveIndex to a random valid move;
-            moveIndex = validMoveTable.indexOf(1);
-        }
+//        this.gameAPI.setValidMoves();
+//        List<Integer> validMoveTable = this.gameAPI.getValidMoveTable();
+//        if (moveIndex == -1 || validMoveTable.get(moveIndex) == 0) {
+//            //invalid move was selected
+//            System.out.printf("\n\nmove %d is an invalid move\n\n", moveIndex);
+//            //check that there is at least 1 valid move. if not the game should have ended
+//            if (validMoveTable.stream().noneMatch(num -> num == 1)) throw new IllegalArgumentException();
+//            //setting moveIndex to a random valid move;
+//            moveIndex = validMoveTable.indexOf(1);
+//        }
         Move output = this.gameAPI.getValidMoveFromIndex(moveIndex);
         if (output == null) output = board.getAvailableMoves().stream().findFirst().get();
         return output;

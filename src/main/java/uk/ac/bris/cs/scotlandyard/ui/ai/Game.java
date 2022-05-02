@@ -226,6 +226,7 @@ public class Game {
         }
         return filteredMoves.get(0); //this is ok because we check in the previous lines for size of list
     }
+
     public int getMoveIndex(Move move) {
         Quintet<Integer, Integer, Integer, Integer, Integer> strippedMove = getStrippedMove(move);
 //        System.out.print("\n\nmove: " + strippedMove);
@@ -370,15 +371,6 @@ public class Game {
             }
             return numOfRounds;
         }
-    }
-
-    List<Integer> getVisitsMap(Map<Pair<String, Integer>, Integer> nsa, String s) {
-        List<Integer> numVisits = new ArrayList<>(Collections.nCopies(POSSIBLEMOVES, 0));
-        for (int a = 0; a < POSSIBLEMOVES; a++) {
-            Pair<String, Integer> pair = new Pair<>(s, a);
-            if (nsa.containsKey(pair)) numVisits.set(a, nsa.get(pair));
-        }
-        return numVisits;
     }
 }
 

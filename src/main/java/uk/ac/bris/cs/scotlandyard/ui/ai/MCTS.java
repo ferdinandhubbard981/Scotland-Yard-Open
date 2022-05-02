@@ -4,6 +4,7 @@ import org.javatuples.Pair;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
@@ -16,8 +17,8 @@ public class MCTS {
     Map<Pair<String, Integer>, Float> qsa; //Pair<GameState, Move> -> QValue
     Map<Pair<String, Integer>, Integer> nsa; //Pair<GameState, Move> -> numOfVisits
     Map<String, Integer> ns; //GameState -> numOfVisits
-    Map<String, List<Float>> ps; //GameState -> policy
-    Map<String, List<Integer>> vs; //GameState -> valid moves
+    Map<String, Map<Integer, Float>> ps; //GameState -> policy only record non 0 values
+    Map<String, Set<Integer>> vs; //GameState -> validMoveIndexes only on non 0 values
     Map<String, Integer> es; // GameState -> gameStatus 0 = running 1 = current won, -1 = current lost
     Map<String, Boolean> pxs; //GameState -> ?parent current player is mrX?
 
@@ -51,19 +52,20 @@ public class MCTS {
         //perform MCTS searches
         int i = 0;
         for (; i < numOfSims && hasTimeLeft(endTime); i++) {
-            if (!s.equals(this.game.stringRepresentation())) throw new IllegalArgumentException();
+//            if (!s.equals(this.game.stringRepresentation())) throw new IllegalArgumentException();
             //perform single MCTS simulation
             this.search();
             //reset game
             this.game = new Game(permGame);
         }
 
-        //get moveMap of MoveVisits
-        List<Integer> numVisits = this.game.getVisitsMap(nsa, s);
-        //flatten function
-        Float countsSum = numVisits.stream().reduce(0, (total, element) -> total += element).floatValue();
-        List<Float> probs = numVisits.stream().map(x -> x / countsSum).toList();
-        //todo remove invalid moves
+        //get moveMap of MoveVisits & normalize
+        Float countsSum = nsa.values().stream().reduce(0, (total, element) -> total += element).floatValue();
+        List<Float> probs = new ArrayList<>(Collections.nCopies(POSSIBLEMOVES, 0f));
+        for (Pair<String, Integer> key : nsa.keySet()) {
+            probs.set(key.getValue1(), nsa.get(key).floatValue()/countsSum);
+        }
+        // there should be no invalid moves here
         return probs;
     }
 
@@ -81,58 +83,71 @@ public class MCTS {
         //check if leaf node
         if (!this.ps.containsKey(s)) {
             //this means s is a leaf node
+
+            //update valid move indexes
+            List<Integer> validMoveTable = this.game.getValidMoveTable();
+            Set<Integer> validMoveIndexes = validMoveTable.stream().map(val -> (val != 0) ? validMoveTable.indexOf(val) : -1) //set all 1 val to their own index and 0 to -1
+                    .filter(val -> val != -1).collect(Collectors.toSet()); //remove -1 values
+            this.vs.put(s, validMoveIndexes);
+
+            //make prediction
             Pair<List<Float>, Float> predPair;
             if (this.game.currentIsMrX) predPair = this.mrXNnet.predict(new NnetInput(this.game));
             else predPair = this.detNnet.predict(new NnetInput(this.game));
-            this.ps.put(s, predPair.getValue0());
             float v = predPair.getValue1();
-            List<Integer> validMoveTable = this.game.getValidMoveTable();
-            List<Float> maskedPolicy = new ArrayList<>(this.ps.get(s));
-            //policy is masked by setting invalid moves to a policy value of 0f (nnet is not 100% accurate)
-            for (int i = 0; i < maskedPolicy.size(); i++) {
-                if (validMoveTable.get(i) == 0) maskedPolicy.set(i, 0f);
+
+            //put non-0 moves in hashmap
+            Map<Integer, Float> validMovePolicyMap = new HashMap<>();
+            for (int index : validMoveIndexes) validMovePolicyMap.put(index, predPair.getValue0().get(index));
+            for (int i = 0; i < POSSIBLEMOVES; i++) {
+                if (predPair.getValue0().get(i) != 0) validMovePolicyMap.put(i, predPair.getValue0().get(i));
             }
-//          update policy in hashmap with the new masked policy
-            this.ps.put(s, maskedPolicy);
+
             //sum of policy
-            Float pssSum = this.ps.get(s).stream().reduce(0f, (total, element) -> total += element);
+            Float pssSum = validMovePolicyMap.values().stream().reduce(0f, (total, element) -> total += element);
             //normalize policy
-            if (pssSum > 0) this.ps.put(s, this.ps.get(s).stream().map(val -> val / pssSum).toList());
+            if (pssSum > 0) {
+                for (Integer index : validMovePolicyMap.keySet()) {
+                    validMovePolicyMap.compute(index, (k, val) -> val/pssSum);
+                }
+            }
             else {
                 System.err.println("all output moves were invalid, nnet might be inadequate\n");
                 //putting validMoveTable as policy + normalizing them
-                this.ps.put(s, validMoveTable.stream().map(val -> val / pssSum).toList());
+                for (int validIndex : validMoveIndexes) {
+                    //add normalized valid move
+                    validMovePolicyMap.put(validIndex, 1f/validMoveIndexes.size());
+                }
             }
-            this.vs.put(s, validMoveTable);
+            this.ps.put(s, validMovePolicyMap);
             this.ns.put(s, 0);
             if (this.pxs.get(s) != this.game.currentIsMrX) return -1 * v;
             else return v;
         }
 
-        List<Integer> validMoveTable = this.vs.get(s);
-        if (!validMoveTable.contains(1))
+        Set<Integer> validMoveTable = this.vs.get(s);
+        if (validMoveTable.isEmpty())
             throw new IllegalArgumentException();
         float bestUCBVal = -Float.MAX_VALUE;
         int bestMoveIndex = -1;
 
         //pick move with highest ucbval
         //TODO split into functions
-        for (int moveIndex = 0; moveIndex < POSSIBLEMOVES; moveIndex++) {
-            if (validMoveTable.get(moveIndex) != 0) {
-                Pair<String, Integer> stateActionPair = new Pair<>(s, moveIndex);
-                float ucbVal;
-                if (this.qsa.containsKey(stateActionPair)) {
-                    ucbVal = (float) (this.qsa.get(stateActionPair) + EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.log(this.ns.get(s))
-                            / (1 + this.nsa.get(stateActionPair)));
-                }
-                else
-//                    ucbVal = (float)(EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s) + 1e-8));
-                    ucbVal = Float.MAX_VALUE;
-                if (ucbVal > bestUCBVal) {
-                    bestUCBVal = ucbVal;
-                    bestMoveIndex = moveIndex;
-                }
+        for (int moveIndex : validMoveTable) {
+            Pair<String, Integer> stateActionPair = new Pair<>(s, moveIndex);
+            float ucbVal;
+            if (this.qsa.containsKey(stateActionPair)) {
+                ucbVal = (float) (this.qsa.get(stateActionPair) + EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.log(this.ns.get(s))
+                        / (1 + this.nsa.get(stateActionPair)));
             }
+            else
+//                    ucbVal = (float)(EXPLORATIONCONSTANT * this.ps.get(s).get(moveIndex) * Math.sqrt(this.ns.get(s) + 1e-8));
+                ucbVal = Float.MAX_VALUE;
+            if (ucbVal > bestUCBVal) {
+                bestUCBVal = ucbVal;
+                bestMoveIndex = moveIndex;
+            }
+
         }
         Boolean currentIsMrX = this.game.currentIsMrX; //saving who current player is because this.game is updated to next state
 
@@ -157,7 +172,7 @@ public class MCTS {
         else {
             //is leaf node
             //creating qval and nval
-            this.qsa.put(stateActionPair, v.floatValue());
+            this.qsa.put(stateActionPair, v);
             this.nsa.put(stateActionPair, 1);
         }
         this.ns.put(s, this.ns.get(s)+1);
