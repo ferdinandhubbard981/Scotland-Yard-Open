@@ -5,7 +5,8 @@ import org.junit.runners.Suite;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
-        NNetInputTest.class
+        MCTSTest.class,
+        NeuralNetTest.class
 })
 
 public class AiTestRunner {}
