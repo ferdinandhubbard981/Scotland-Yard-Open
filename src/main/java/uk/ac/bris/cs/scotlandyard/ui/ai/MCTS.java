@@ -10,7 +10,7 @@ import static uk.ac.bris.cs.scotlandyard.ui.ai.Game.POSSIBLEMOVES;
 
 public class MCTS {
     private static final float EXPLORATIONCONSTANT = (float) Math.sqrt(2);
-    private static final long MINMILLISECREMAINING = 500;
+    private static final long MINMILLISECREMAINING = 1000;
     NeuralNet mrXNnet;
     NeuralNet detNnet;
     Game game;
@@ -54,7 +54,20 @@ public class MCTS {
         for (; i < numOfSims && hasTimeLeft(endTime); i++) {
 //            if (!s.equals(this.game.stringRepresentation())) throw new IllegalArgumentException();
             //perform single MCTS simulation
-            this.search();
+            long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+            long freeMemory = Runtime.getRuntime().maxMemory() - usedMemory;
+            if (freeMemory > 1 * Math.pow(10, 8)) {//10MB
+                this.search();
+            }
+            else {
+                System.out.printf("out of memory\n");
+                this.ps = null;
+                this.ns = null;
+                this.qsa = null;
+                break;
+            }
+                //free up some memory
+
             //reset game
             this.game = new Game(permGame);
         }

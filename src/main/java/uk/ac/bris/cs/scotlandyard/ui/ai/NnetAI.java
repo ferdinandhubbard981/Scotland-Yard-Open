@@ -18,7 +18,7 @@ import uk.ac.bris.cs.scotlandyard.model.ScotlandYard.Ticket;
 public class NnetAI implements Ai {
     private static final int MRXUNKOWNPOSITION = 100;
     Game gameAPI;
-    @Nonnull @Override public String name() { return "NnetAI";}
+    @Nonnull @Override public String name() { return "sentientAI";}
 
     @Nonnull @Override public void onStart() {
 
@@ -35,6 +35,21 @@ public class NnetAI implements Ai {
     @Nonnull @Override public Move pickMove(
             @Nonnull Board board,
             Pair<Long, TimeUnit> timeoutPair) {
+        try {
+            return doMCTS(board, timeoutPair);
+        }
+        catch(Exception e) {
+            var moves = board.getAvailableMoves().asList();
+            return moves.get(new Random().nextInt(moves.size()));
+        }
+//        catch (Error e) {
+//            var moves = board.getAvailableMoves().asList();
+//            return moves.get(new Random().nextInt(moves.size()));
+//        }
+
+    }
+
+    private Move doMCTS(Board board, Pair<Long, TimeUnit> timeoutPair) {
         long endTime = System.nanoTime() + timeoutPair.right().toNanos(timeoutPair.left());
         //set currentState from board
         this.gameAPI.setGameState(build(board));
@@ -54,7 +69,7 @@ public class NnetAI implements Ai {
         List<Float> policy = mcts.getActionProb(tempGame, 0, endTime);
         mrXNnet.closeSess();
         detNnet.closeSess();
-
+        System.out.println("closed sess\n");
         Float highestPolicyVal = policy.stream()
                 .reduce(0f, (maxVal, element) -> maxVal = (element > maxVal) ? element: maxVal);
         int moveIndex = policy.indexOf(highestPolicyVal);
