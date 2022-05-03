@@ -56,7 +56,7 @@ public class MCTS {
             //perform single MCTS simulation
             long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
             long freeMemory = Runtime.getRuntime().maxMemory() - usedMemory;
-            if (freeMemory > 1 * Math.pow(10, 8)) {//10MB
+            if (freeMemory > 5 * Math.pow(10, 8)) {//50MB
                 this.search();
             }
             else {

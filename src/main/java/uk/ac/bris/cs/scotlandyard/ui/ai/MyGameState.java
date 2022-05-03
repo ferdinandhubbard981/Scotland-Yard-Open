@@ -377,7 +377,6 @@ public final class MyGameState implements Board.GameState {
             try {tempPlayer.use(move.tickets());}
             catch (Exception e) {
                 e.printStackTrace();
-                System.exit(1);
             }
         }
     }
