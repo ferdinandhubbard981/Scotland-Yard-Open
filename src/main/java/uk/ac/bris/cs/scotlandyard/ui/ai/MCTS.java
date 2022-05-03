@@ -180,7 +180,7 @@ public class MCTS {
         else return v;
     }
 
-    boolean hasTimeLeft(long endtime) {
+    public boolean hasTimeLeft(long endtime) {
         if (endtime == 0) return true;
         if (endtime - System.nanoTime() > TimeUnit.MILLISECONDS.toNanos(MINMILLISECREMAINING)) return true;
         return false;

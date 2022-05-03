@@ -1,8 +1,15 @@
 package test.aiTests;
 
+import org.javatuples.Pair;
+
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * utility class for testing
+ * @param <T>
+ */
 public class testMethods<T extends Comparable<T>> {
     /**
      *
@@ -16,5 +23,11 @@ public class testMethods<T extends Comparable<T>> {
                 if (!Objects.equals(l1.get(i), l2.get(i))) return false;
             }
             return true;
+        }
+        public boolean isSamePair(Pair<List<T>, T> pair1, Pair<List<T>, T> pair2){
+            return hasSameValues(pair1.getValue0(), pair2.getValue0()) && pair1.getValue1().equals(pair2.getValue1());
+        }
+        public Pair<List<T>, T> createPairList(T secondValue, T ...listValues){
+            return new Pair<>(Arrays.stream(listValues).toList(), secondValue);
         }
 }
